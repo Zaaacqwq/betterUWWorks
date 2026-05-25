@@ -1,0 +1,137 @@
+import { NextRequest } from "next/server";
+import { db } from "@/db";
+import { jobs } from "@/db/schema";
+import { sql, ilike, and, SQL, desc, asc, gte, eq, inArray, or } from "drizzle-orm";
+
+export async function GET(request: NextRequest) {
+  const params = request.nextUrl.searchParams;
+  const q = params.get("q")?.trim() || "";
+  const locations = splitParam(params.get("location"));
+  const levels = splitParam(params.get("level"));
+  const arrangements = splitParam(params.get("arrangement"));
+  const durations = splitParam(params.get("duration"));
+  const workTerms = splitParam(params.get("workTerm"));
+  const jobTypes = splitParam(params.get("jobType"));
+  const minPay = parseFloat(params.get("minPay") || "");
+  const minRating = parseFloat(params.get("minRating") || "");
+  const sort = params.get("sort") || "deadline";
+  const order = params.get("order") === "asc" ? "asc" : "desc";
+  const page = Math.max(1, parseInt(params.get("page") || "1", 10));
+  const limit = Math.min(100, Math.max(1, parseInt(params.get("limit") || "20", 10)));
+  const offset = (page - 1) * limit;
+
+  const conditions: SQL[] = [];
+
+  if (q) {
+    conditions.push(sql`search_vector @@ plainto_tsquery('english', ${q})`);
+  }
+  if (locations.length > 0) {
+    conditions.push(
+      locations.length === 1
+        ? ilike(jobs.location, `%${locations[0]}%`)
+        : or(...locations.map((l) => ilike(jobs.location, `%${l}%`)))!
+    );
+  }
+  if (levels.length > 0) {
+    conditions.push(
+      levels.length === 1
+        ? ilike(jobs.level, `%${levels[0]}%`)
+        : or(...levels.map((l) => ilike(jobs.level, `%${l}%`)))!
+    );
+  }
+  if (arrangements.length > 0) {
+    conditions.push(inArray(jobs.locationArrangement, arrangements));
+  }
+  if (durations.length > 0) {
+    conditions.push(
+      durations.length === 1
+        ? ilike(jobs.workTermDuration, `%${durations[0]}%`)
+        : or(...durations.map((d) => ilike(jobs.workTermDuration, `%${d}%`)))!
+    );
+  }
+  if (workTerms.length > 0) {
+    conditions.push(inArray(jobs.workTerm, workTerms));
+  }
+  if (jobTypes.length > 0) {
+    conditions.push(inArray(jobs.jobType, jobTypes));
+  }
+  if (!isNaN(minPay) && minPay > 0) {
+    conditions.push(gte(jobs.parsedHourlyMin, minPay));
+  }
+  if (!isNaN(minRating) && minRating > 0) {
+    conditions.push(gte(jobs.employerRating, minRating));
+  }
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const sortColumn = {
+    deadline: jobs.deadlineAt,
+    title: jobs.title,
+    organization: jobs.organization,
+    imported: jobs.importedAt,
+    pay: jobs.parsedHourlyMin,
+    rating: jobs.employerRating,
+    hires: jobs.totalHires,
+  }[sort] || jobs.deadlineAt;
+
+  const nullsLast = sort === "pay" || sort === "rating" || sort === "hires";
+  const orderExpr = nullsLast
+    ? order === "asc"
+      ? sql`${sortColumn} asc nulls first`
+      : sql`${sortColumn} desc nulls last`
+    : order === "asc"
+      ? asc(sortColumn)
+      : desc(sortColumn);
+
+  const [results, countResult] = await Promise.all([
+    db
+      .select({
+        id: jobs.id,
+        jobId: jobs.jobId,
+        title: jobs.title,
+        organization: jobs.organization,
+        division: jobs.division,
+        location: jobs.location,
+        level: jobs.level,
+        deadline: jobs.deadline,
+        deadlineAt: jobs.deadlineAt,
+        openings: jobs.openings,
+        jobType: jobs.jobType,
+        workTerm: jobs.workTerm,
+        jobSummary: jobs.jobSummary,
+        locationArrangement: jobs.locationArrangement,
+        workTermDuration: jobs.workTermDuration,
+        parsedHourlyMin: jobs.parsedHourlyMin,
+        parsedHourlyMax: jobs.parsedHourlyMax,
+        employerRating: jobs.employerRating,
+        employerRatingCount: jobs.employerRatingCount,
+        totalHires: jobs.totalHires,
+        requiredSkills: jobs.requiredSkills,
+        specialRequirements: jobs.specialRequirements,
+        aiSkills: jobs.aiSkills,
+        hiresByWorkTermNumber: sql<Record<string, number> | null>`${jobs.workTermRatings}->'hiresByWorkTermNumber'`,
+      })
+      .from(jobs)
+      .where(where)
+      .orderBy(orderExpr)
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(jobs)
+      .where(where),
+  ]);
+
+  const total = countResult[0]?.count || 0;
+
+  return Response.json({
+    success: true,
+    data: results,
+    meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+  });
+}
+
+function splitParam(value: string | null): string[] {
+  if (!value) return [];
+  return value.split(",").map((s) => s.trim()).filter(Boolean);
+}

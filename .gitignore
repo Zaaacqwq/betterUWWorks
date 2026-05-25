@@ -1,0 +1,22 @@
+node_modules/
+.next/
+.env*
+.DS_Store
+*.pem
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+
+# data files
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!components.json
+!postcss.config.json
+
+# diagnostic scripts
+diag-*.js
+
+# docker data
+pgdata/
