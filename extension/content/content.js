@@ -4,7 +4,13 @@
   const TABLE_SEL = "table.data-viewer-table";
   const ROW_SEL = "tbody tr";
   const CELL_SEL = "td.table__value";
-  const JOB_MODAL_SEL = ".modal.is--visible:not(#keepMeLoggedInModal)";
+  // A posting no longer opens in a .modal — it renders into the document
+  // viewer's article, which is always present and marked is--visible while a
+  // posting is open. The old selector matched nothing, so every detail scrape
+  // returned "No job detail modal found". The modal form is kept as a fallback
+  // for any view still using it.
+  const JOB_MODAL_SEL =
+    "article.doc-viewer__document.is--visible, .modal.is--visible:not(#keepMeLoggedInModal)";
 
   console.log("[buw] Content script loaded on", window.location.href);
 
@@ -215,6 +221,28 @@
     "JOB SUMMARY", "JOB RESPONSIBILITIES", "REQUIRED SKILLS",
     "COMPENSATION AND BENEFITS", "TARGETED DEGREES AND DISCIPLINES", "SPECIAL JOB REQUIREMENTS",
   ]);
+
+  // Resolves once the open posting is the one asked for. The viewer prints the
+  // id near the top of its own text, which is the only marker distinguishing
+  // one posting from the last.
+  function waitForJobDetail(jobId, timeout = 15000) {
+    return new Promise((resolve, reject) => {
+      const start = Date.now();
+
+      const tick = () => {
+        const modal = document.querySelector(JOB_MODAL_SEL);
+        if (modal && (!jobId || modal.innerText.includes(jobId))) return resolve(modal);
+
+        if (Date.now() - start >= timeout) {
+          reject(new Error(jobId ? `Posting ${jobId} did not open` : "No job detail found"));
+          return;
+        }
+        setTimeout(tick, 150);
+      };
+
+      tick();
+    });
+  }
 
   function scrapeJobDetail() {
     const modal = document.querySelector(JOB_MODAL_SEL);
@@ -440,9 +468,12 @@
       }
 
       case "scrape-detail": {
-        const modal = document.querySelector(JOB_MODAL_SEL);
-        if (modal) { sendResponse(scrapeJobDetail()); return false; }
-        waitForElement(JOB_MODAL_SEL).then(() => sleep(600)).then(() => sendResponse(scrapeJobDetail()))
+        // The document viewer stays open between postings, so the container
+        // being present says nothing about which posting it holds. Wait until
+        // it shows the id we asked for, or the previous posting's detail gets
+        // recorded against this one.
+        waitForJobDetail(msg.payload?.jobId)
+          .then(() => sendResponse(scrapeJobDetail()))
           .catch((e) => sendResponse({ error: true, message: e.message }));
         return true;
       }

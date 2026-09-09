@@ -230,7 +230,7 @@ async function scrapeDetails(tabId) {
 
       await sleep(1000);
 
-      const detail = await toTab(tabId, "scrape-detail");
+      const detail = await toTab(tabId, "scrape-detail", { jobId: job.jobId });
       if (detail && !detail.error) {
         jobDetails[job.jobId] = detail.detail;
 
