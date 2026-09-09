@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { jobs } from "@/db/schema";
 import { isNull, sql, eq } from "drizzle-orm";
 import { generateText } from "ai";
-import { models } from "@/lib/ai/provider";
+import { models, FAST_OPTIONS } from "@/lib/ai/provider";
 import { JOB_SKILLS_SYSTEM, jobSkillsPrompt } from "@/lib/ai/prompts";
 import { extractExtraText } from "@/lib/extract-detail";
 
@@ -39,6 +39,7 @@ export async function POST(request: Request) {
 
       const { text: raw } = await generateText({
         model: models.fast,
+        providerOptions: FAST_OPTIONS,
         system: JOB_SKILLS_SYSTEM,
         prompt: jobSkillsPrompt({
           title: job.title,

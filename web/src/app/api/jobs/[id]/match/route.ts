@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { jobs } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { streamText } from "ai";
-import { models } from "@/lib/ai/provider";
+import { models, FAST_OPTIONS } from "@/lib/ai/provider";
 import { MATCH_ANALYSIS_SYSTEM, matchAnalysisPrompt } from "@/lib/ai/prompts";
 
 export async function POST(
@@ -43,6 +43,7 @@ export async function POST(
 
   const stream = streamText({
     model: models.fast,
+    providerOptions: FAST_OPTIONS,
     system: MATCH_ANALYSIS_SYSTEM,
     prompt: matchAnalysisPrompt(profile, result[0]),
   });

@@ -1,5 +1,5 @@
 import { generateText } from "ai";
-import { models } from "@/lib/ai/provider";
+import { models, FAST_OPTIONS } from "@/lib/ai/provider";
 import { RESUME_EXTRACT_SYSTEM, resumeExtractPrompt } from "@/lib/ai/prompts";
 import type { Capability, EvidenceType, ResumeProfile, Skill } from "@/lib/resume/types";
 
@@ -59,6 +59,7 @@ export async function POST(request: Request) {
 
   const { text: raw } = await generateText({
     model: models.fast,
+    providerOptions: FAST_OPTIONS,
     system: RESUME_EXTRACT_SYSTEM,
     prompt: resumeExtractPrompt(text.slice(0, 30000)),
   });

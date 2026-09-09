@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { jobs } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { streamText } from "ai";
-import { models } from "@/lib/ai/provider";
+import { models, FAST_OPTIONS } from "@/lib/ai/provider";
 import { JOB_SUMMARY_SYSTEM, jobSummaryPrompt } from "@/lib/ai/prompts";
 
 export async function POST(
@@ -44,6 +44,7 @@ export async function POST(
 
   const stream = streamText({
     model: models.fast,
+    providerOptions: FAST_OPTIONS,
     system: JOB_SUMMARY_SYSTEM,
     prompt: jobSummaryPrompt(job),
     async onFinish({ text }) {
