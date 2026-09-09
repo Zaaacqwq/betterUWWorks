@@ -44,67 +44,72 @@ export async function POST(request: NextRequest) {
   const now = new Date();
   let upserted = 0;
 
-  for (const item of jobItems) {
-    const detail = extractDetailFields(item.detail);
-    const rawDetail = item.detail as Record<string, unknown> | undefined;
-    const workTermRatings = rawDetail?._workTermRatings ?? null;
+  // One transaction for the whole batch: the rows go in one at a time, and
+  // without this a page loading mid-import counted a partially written table
+  // and reported a total well short of the batch.
+  await db.transaction(async (tx) => {
+    for (const item of jobItems) {
+      const detail = extractDetailFields(item.detail);
+      const rawDetail = item.detail as Record<string, unknown> | undefined;
+      const workTermRatings = rawDetail?._workTermRatings ?? null;
 
-    const deadlineAt = item.deadline ? parseDeadline(item.deadline) : null;
+      const deadlineAt = item.deadline ? parseDeadline(item.deadline) : null;
 
-    await db
-      .insert(jobs)
-      .values({
-        jobId: item.jobId,
-        title: item.title,
-        organization: item.organization,
-        division: item.division || null,
-        openings:
-          typeof item.openings === "number" ? item.openings : null,
-        location: item.location || null,
-        level: item.level || null,
-        deadline: item.deadline || null,
-        deadlineAt,
-        ...detail,
-        rawDetail: item.detail ?? null,
-        workTermRatings,
-        batchId: batchId ?? null,
-        importedAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: jobs.jobId,
-        set: {
-          title: sql`excluded.title`,
-          organization: sql`excluded.organization`,
-          division: sql`excluded.division`,
-          openings: sql`excluded.openings`,
-          location: sql`excluded.location`,
-          level: sql`excluded.level`,
-          deadline: sql`excluded.deadline`,
-          deadlineAt: sql`excluded.deadline_at`,
-          workTerm: sql`excluded.work_term`,
-          jobType: sql`excluded.job_type`,
-          region: sql`excluded.region`,
-          address: sql`excluded.address`,
-          locationArrangement: sql`excluded.location_arrangement`,
-          workTermDuration: sql`excluded.work_term_duration`,
-          specialRequirements: sql`excluded.special_requirements`,
-          jobSummary: sql`excluded.job_summary`,
-          jobResponsibilities: sql`excluded.job_responsibilities`,
-          requiredSkills: sql`excluded.required_skills`,
-          compensation: sql`excluded.compensation`,
-          applicationDelivery: sql`excluded.application_delivery`,
-          applicationInfo: sql`excluded.application_info`,
-          serviceTeam: sql`excluded.service_team`,
-          rawDetail: sql`excluded.raw_detail`,
-          workTermRatings: sql`excluded.work_term_ratings`,
-          batchId: sql`excluded.batch_id`,
+      await tx
+        .insert(jobs)
+        .values({
+          jobId: item.jobId,
+          title: item.title,
+          organization: item.organization,
+          division: item.division || null,
+          openings:
+            typeof item.openings === "number" ? item.openings : null,
+          location: item.location || null,
+          level: item.level || null,
+          deadline: item.deadline || null,
+          deadlineAt,
+          ...detail,
+          rawDetail: item.detail ?? null,
+          workTermRatings,
+          batchId: batchId ?? null,
+          importedAt: now,
           updatedAt: now,
-        },
-      });
+        })
+        .onConflictDoUpdate({
+          target: jobs.jobId,
+          set: {
+            title: sql`excluded.title`,
+            organization: sql`excluded.organization`,
+            division: sql`excluded.division`,
+            openings: sql`excluded.openings`,
+            location: sql`excluded.location`,
+            level: sql`excluded.level`,
+            deadline: sql`excluded.deadline`,
+            deadlineAt: sql`excluded.deadline_at`,
+            workTerm: sql`excluded.work_term`,
+            jobType: sql`excluded.job_type`,
+            region: sql`excluded.region`,
+            address: sql`excluded.address`,
+            locationArrangement: sql`excluded.location_arrangement`,
+            workTermDuration: sql`excluded.work_term_duration`,
+            specialRequirements: sql`excluded.special_requirements`,
+            jobSummary: sql`excluded.job_summary`,
+            jobResponsibilities: sql`excluded.job_responsibilities`,
+            requiredSkills: sql`excluded.required_skills`,
+            compensation: sql`excluded.compensation`,
+            applicationDelivery: sql`excluded.application_delivery`,
+            applicationInfo: sql`excluded.application_info`,
+            serviceTeam: sql`excluded.service_team`,
+            rawDetail: sql`excluded.raw_detail`,
+            workTermRatings: sql`excluded.work_term_ratings`,
+            batchId: sql`excluded.batch_id`,
+            updatedAt: now,
+          },
+        });
 
-    upserted++;
-  }
+      upserted++;
+    }
+  });
 
   return Response.json({
     success: true,
