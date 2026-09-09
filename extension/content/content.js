@@ -105,8 +105,15 @@
     return text.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
   }
 
+  // Header and body cell lists have to be gathered the same way, or a column
+  // index taken from one does not address the other.
+  function rowCells(row) {
+    return Array.from(row.querySelectorAll("th, td"));
+  }
+
   function buildColumnMap(table) {
-    const headings = Array.from(table.querySelectorAll("thead th, thead td"))
+    const headerRow = table.querySelector("thead tr:last-of-type");
+    const headings = (headerRow ? rowCells(headerRow) : [])
       .map((cell) => normalizeHeading(cell.textContent || ""));
 
     const map = {};
@@ -157,13 +164,25 @@
     let missingIds = 0;
 
     for (const row of rows) {
-      const cells = row.querySelectorAll(CELL_SEL);
+      // Every cell, not just td.table__value: the headings a column index comes
+      // from include the leading selection-checkbox column, so reading only the
+      // value cells shifted every field one column to the right.
+      const cells = rowCells(row);
       if (cells.length < 2) continue;
+
+      if (cells.length !== headings.length) {
+        return {
+          error: true,
+          message:
+            `Row has ${cells.length} cells but the header has ${headings.length}. ` +
+            `Headings: ${headings.join(" | ")}`,
+        };
+      }
 
       const jobId = rowJobId(row);
       if (!jobId) { missingIds++; continue; }
 
-      const t = Array.from(cells).map((c) => c.textContent.trim());
+      const t = cells.map((c) => c.textContent.trim());
       const at = (field) => (map[field] === undefined ? "" : t[map[field]] || "");
 
       jobs.push({
