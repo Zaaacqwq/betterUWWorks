@@ -55,6 +55,7 @@ async function scrapeAllPages(tabId) {
   const seenIds = new Set();
   let page = 0;
   let duplicates = 0;
+  let missingIds = 0;
   let incomplete = null;
 
   while (true) {
@@ -90,6 +91,7 @@ async function scrapeAllPages(tabId) {
     }
 
     duplicates += result.jobs.length - fresh.length;
+    missingIds += result.missingIds || 0;
     for (const job of fresh) seenIds.add(job.jobId);
     allJobs.push(...fresh);
 
@@ -119,6 +121,7 @@ async function scrapeAllPages(tabId) {
   // were being re-read and postings dropped.
   const notes = [];
   if (duplicates > 0) notes.push(`${duplicates} duplicate row(s) skipped`);
+  if (missingIds > 0) notes.push(`${missingIds} row(s) had no job id`);
   if (incomplete) notes.push(`incomplete: ${incomplete}`);
 
   await setState({

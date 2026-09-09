@@ -88,22 +88,92 @@
     });
   }
 
+  // Columns are matched by heading rather than position: WaterlooWorks dropped
+  // the id column between terms, and fixed indexes silently shifted every field
+  // by one, storing job titles as ids and company names as titles.
+  const COLUMN_ALIASES = {
+    title: ["job title", "title"],
+    organization: ["organization", "company", "employer"],
+    division: ["division"],
+    openings: ["openings", "number of openings"],
+    location: ["location", "job location", "city"],
+    level: ["level", "student level", "work term level"],
+    deadline: ["deadline", "application deadline", "app deadline"],
+  };
+
+  function normalizeHeading(text) {
+    return text.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  function buildColumnMap(table) {
+    const headings = Array.from(table.querySelectorAll("thead th, thead td"))
+      .map((cell) => normalizeHeading(cell.textContent || ""));
+
+    const map = {};
+    for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
+      let index = headings.findIndex((h) => aliases.includes(h));
+      if (index === -1) index = headings.findIndex((h) => h && aliases.some((a) => h.includes(a)));
+      if (index !== -1) map[field] = index;
+    }
+    return { map, headings };
+  }
+
+  // The id is no longer a column, so take it from whatever the row links to.
+  function rowJobId(row) {
+    const href = row.querySelector("a[href]")?.getAttribute("href") || "";
+    const fromHref = href.match(/ck_jobid=(\d+)/);
+    if (fromHref) return fromHref[1];
+
+    const onclick = row.getAttribute("onclick") || row.querySelector("[onclick]")?.getAttribute("onclick") || "";
+    const fromOnclick = onclick.match(/(\d{5,})/);
+    if (fromOnclick) return fromOnclick[1];
+
+    const rowId = row.getAttribute("id") || row.getAttribute("data-id") || "";
+    const fromRowId = rowId.match(/(\d{5,})/);
+    return fromRowId ? fromRowId[1] : null;
+  }
+
   function scrapeCurrentPage() {
     const table = document.querySelector(TABLE_SEL);
     if (!table) return { error: true, message: "Job table not found." };
+
+    const { map, headings } = buildColumnMap(table);
+    for (const field of ["title", "organization"]) {
+      if (map[field] === undefined) {
+        return {
+          error: true,
+          message: `No "${field}" column. Headings seen: ${headings.filter(Boolean).join(" | ")}`,
+        };
+      }
+    }
+
     const rows = table.querySelectorAll(ROW_SEL);
     const jobs = [];
+    let missingIds = 0;
+
     for (const row of rows) {
       const cells = row.querySelectorAll(CELL_SEL);
       if (cells.length < 2) continue;
+
+      const jobId = rowJobId(row);
+      if (!jobId) { missingIds++; continue; }
+
       const t = Array.from(cells).map((c) => c.textContent.trim());
+      const at = (field) => (map[field] === undefined ? "" : t[map[field]] || "");
+
       jobs.push({
-        jobId: t[0] || null, title: t[1] || "", organization: t[2] || "",
-        division: t[3] || "", openings: parseInt(t[4], 10) || 0,
-        location: t[5] || "", level: t[6] || "", deadline: t[7] || "",
+        jobId,
+        title: at("title"),
+        organization: at("organization"),
+        division: at("division"),
+        openings: parseInt(at("openings"), 10) || 0,
+        location: at("location"),
+        level: at("level"),
+        deadline: at("deadline"),
       });
     }
-    return { error: false, jobs };
+
+    return { error: false, jobs, missingIds };
   }
 
   function getFirstId() {
