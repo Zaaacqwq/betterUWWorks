@@ -35,6 +35,30 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// Reloading the extension tears down the content script in tabs that are
+// already open, and the manifest only re-injects it on navigation, so the first
+// message after a reload failed with "Receiving end does not exist". Inject on
+// demand instead of asking for a page refresh.
+async function ensureContentScript(tabId) {
+  const alive = await toTab(tabId, "ping");
+  if (!alive.error) return { ok: true };
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["content/content.js"],
+    });
+  } catch (err) {
+    return { ok: false, message: `Cannot reach the page: ${err.message}` };
+  }
+
+  const retry = await toTab(tabId, "ping");
+  if (retry.error) {
+    return { ok: false, message: "Content script did not load. Reload the WaterlooWorks tab." };
+  }
+  return { ok: true };
+}
+
 async function waitWhilePaused() {
   while (true) {
     const s = await getState();
@@ -47,6 +71,12 @@ async function waitWhilePaused() {
 // === Scrape all pages ===
 async function scrapeAllPages(tabId) {
   await setState({ status: "scraping-list", statusText: "Starting...", jobs: [], jobDetails: {}, tabId });
+
+  const ready = await ensureContentScript(tabId);
+  if (!ready.ok) {
+    await setState({ status: "error", statusText: ready.message });
+    return;
+  }
 
   await toTab(tabId, "click-first");
   await sleep(500);
@@ -139,6 +169,12 @@ async function scrapeDetails(tabId) {
   const state = await getState();
   const jobs = state.jobs;
   if (jobs.length === 0) return;
+
+  const ready = await ensureContentScript(tabId);
+  if (!ready.ok) {
+    await setState({ status: "error", statusText: ready.message });
+    return;
+  }
 
   const jobDetails = state.jobDetails || {};
   const alreadyDone = Object.keys(jobDetails).filter((id) => !jobDetails[id]._error).length;

@@ -14,6 +14,7 @@ next-env.d.ts
 !tsconfig.json
 !components.json
 !postcss.config.json
+!extension/manifest.json
 
 # diagnostic scripts
 diag-*.js

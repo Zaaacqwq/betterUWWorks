@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "betterUWWorks Scraper",
+  "version": "0.2.0",
+  "description": "Scrape job postings from WaterlooWorks",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://waterlooworks.uwaterloo.ca/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "betterUWWorks Scraper"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://waterlooworks.uwaterloo.ca/*"
+      ],
+      "js": [
+        "content/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
