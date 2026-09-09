@@ -57,6 +57,8 @@ export function JobListPage() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [clearState, setClearState] = useState<"idle" | "confirming" | "clearing">("idle");
+  const [clearError, setClearError] = useState<string | null>(null);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     locations: [], levels: [], arrangements: [], durations: [], workTerms: [], jobTypes: [],
   });
@@ -120,6 +122,33 @@ export function JobListPage() {
   useEffect(() => {
     fetchJobs();
   }, [fetchJobs]);
+
+  // Two-step so a stray click cannot wipe a scrape; the count goes along so the
+  // server refuses if the table changed since this page loaded.
+  const clearAllJobs = useCallback(async () => {
+    if (clearState === "idle") {
+      setClearError(null);
+      setClearState("confirming");
+      return;
+    }
+    if (clearState !== "confirming") return;
+
+    setClearState("clearing");
+    try {
+      const resp = await fetch(`/api/jobs?expected=${totalFromServer}`, { method: "DELETE" });
+      const result = await resp.json();
+      if (!resp.ok || !result.success) {
+        setClearError(result.error || resp.statusText);
+        return;
+      }
+      setSelectedJobId(null);
+      fetchJobs();
+    } catch (err) {
+      setClearError(err instanceof Error ? err.message : "Could not reach the server");
+    } finally {
+      setClearState("idle");
+    }
+  }, [clearState, totalFromServer, fetchJobs]);
 
   // Sync selectedJobId to URL query param
   useEffect(() => {
@@ -281,8 +310,28 @@ export function JobListPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4.929 9A8 8 0 0119.07 9M19.071 15A8 8 0 014.93 15" />
               </svg>
             </button>
+            <button
+              onClick={clearAllJobs}
+              onBlur={() => clearState === "confirming" && setClearState("idle")}
+              disabled={clearState === "clearing" || totalFromServer === 0}
+              className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full transition-colors disabled:opacity-40 ${
+                clearState === "confirming"
+                  ? "bg-red-500 text-white"
+                  : "text-white/70 hover:text-white hover:bg-white/10"
+              }`}
+              title={clearState === "confirming" ? "Click again to delete" : "Delete all jobs"}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              {clearState === "clearing"
+                ? "Clearing..."
+                : clearState === "confirming"
+                  ? `Delete all ${totalFromServer}?`
+                  : "Clear"}
+            </button>
             <p className="text-xs text-stone">
-              {totalFromServer} jobs
+              {clearError ?? `${totalFromServer} jobs`}
             </p>
           </div>
         </div>

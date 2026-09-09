@@ -140,6 +140,38 @@ export async function GET(request: NextRequest) {
   });
 }
 
+// Wipes the table so a term can be re-scraped from scratch. Postings are
+// re-importable from the extension, so there is nothing here to preserve, but
+// the caller has to name the count it means to delete: that way a stale page
+// cannot clear a batch the user has since imported.
+export async function DELETE(request: NextRequest) {
+  const expected = parseInt(request.nextUrl.searchParams.get("expected") || "", 10);
+  if (!Number.isInteger(expected) || expected < 0) {
+    return Response.json(
+      { success: false, error: "Pass ?expected=<row count> to confirm" },
+      { status: 400 }
+    );
+  }
+
+  const [{ count: actual }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(jobs);
+
+  if (actual !== expected) {
+    return Response.json(
+      {
+        success: false,
+        error: `Table holds ${actual} jobs, not the ${expected} you saw. Refresh and try again.`,
+      },
+      { status: 409 }
+    );
+  }
+
+  await db.delete(jobs);
+
+  return Response.json({ success: true, data: { deleted: actual } });
+}
+
 function splitParam(value: string | null): string[] {
   if (!value) return [];
   return value.split(",").map((s) => s.trim()).filter(Boolean);
