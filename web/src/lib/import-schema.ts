@@ -1,19 +1,30 @@
 import { z } from "zod/v4";
 
-const jobDetailSchema = z.record(z.string(), z.unknown()).optional();
+const jobDetailSchema = z.record(z.string(), z.unknown()).nullish();
+
+// The extension sends `null` for fields it could not scrape, so every optional
+// field accepts null and normalizes it to the empty-ish default.
+const optionalText = (fallback = "") =>
+  z
+    .string()
+    .nullish()
+    .transform((v) => v ?? fallback);
 
 const jobItemSchema = z.object({
   jobId: z.string().min(1),
   title: z.string().min(1),
   organization: z.string().min(1),
-  division: z.string().optional().default(""),
+  division: optionalText(),
   openings: z
     .union([z.number(), z.string()])
-    .transform((v) => (typeof v === "string" ? parseInt(v, 10) || null : v))
-    .optional(),
-  location: z.string().optional().default(""),
-  level: z.string().optional().default(""),
-  deadline: z.string().optional().default(""),
+    .nullish()
+    .transform((v) => {
+      if (typeof v === "string") return parseInt(v, 10) || null;
+      return v ?? null;
+    }),
+  location: optionalText(),
+  level: optionalText(),
+  deadline: optionalText(),
   detail: jobDetailSchema,
 });
 

@@ -246,8 +246,17 @@
         statusText.textContent = `Synced ${result.data.imported} jobs to web app.`;
         statusDot.className = "status-dot success";
       } else {
-        statusText.textContent = `Sync failed: ${result.error || resp.statusText}`;
+        const detail = Array.isArray(result.details)
+          ? result.details
+              .slice(0, 3)
+              .map((d) => `${(d.path || []).join(".")}: ${d.message}`)
+              .join("; ")
+          : "";
+        statusText.textContent = `Sync failed: ${result.error || resp.statusText}${
+          detail ? ` — ${detail}` : ""
+        }`;
         statusDot.className = "status-dot error";
+        console.error("[buw] sync failed", result);
       }
     } catch (err) {
       statusText.textContent = `Sync error: ${err.message}`;
