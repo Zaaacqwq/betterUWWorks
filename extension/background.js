@@ -167,8 +167,8 @@ async function scrapeAllPages(tabId) {
 // === Scrape details ===
 async function scrapeDetails(tabId) {
   const state = await getState();
-  const jobs = state.jobs;
-  if (jobs.length === 0) return;
+  const total = state.jobs.length;
+  if (total === 0) return;
 
   const ready = await ensureContentScript(tabId);
   if (!ready.ok) {
@@ -177,92 +177,106 @@ async function scrapeDetails(tabId) {
   }
 
   const jobDetails = state.jobDetails || {};
-  const alreadyDone = Object.keys(jobDetails).filter((id) => !jobDetails[id]._error).length;
+  const titles = new Map(state.jobs.map((j) => [j.jobId, j.title]));
 
   await setState({ status: "scraping-details", statusText: "Starting detail scrape...", tabId });
 
-  const pageSize = 50;
-  const totalPages = Math.ceil(jobs.length / pageSize);
-  let successCount = alreadyDone;
+  await toTab(tabId, "click-first");
 
-  for (let page = 0; page < totalPages; page++) {
-    await setState({ statusText: `Navigating to page ${page + 1}/${totalPages}...` });
-    await toTab(tabId, "click-first");
-    await sleep(300);
-    for (let p = 0; p < page; p++) {
-      await toTab(tabId, "click-next");
+  let successCount = Object.keys(jobDetails).filter((id) => !jobDetails[id]._error).length;
+  let seen = 0;
+  let page = 0;
+  let lastError = null;
+
+  while (true) {
+    const cs = await getState();
+    if (cs.status === "idle") return;
+    if (cs.status === "paused" && (await waitWhilePaused()) === "cancelled") return;
+
+    page++;
+
+    // Take the ids from the page in front of us. The old code walked back to
+    // page one and clicked forward for every page, then sliced the job list by
+    // a hard-coded 50 — the list actually holds 48, so click-job was being
+    // asked for rows that were never on screen and every job failed.
+    const pageResult = await toTab(tabId, "scrape-page");
+    if (pageResult.error) {
+      await setState({ status: "error", statusText: "Error: " + pageResult.message });
+      return;
     }
-    await sleep(500);
 
-    const pageJobs = jobs.slice(page * pageSize, (page + 1) * pageSize);
+    for (const row of pageResult.jobs) {
+      const inner = await getState();
+      if (inner.status === "idle") return;
+      if (inner.status === "paused" && (await waitWhilePaused()) === "cancelled") return;
 
-    for (let i = 0; i < pageJobs.length; i++) {
-      // Check for pause/cancel
-      const cs = await getState();
-      if (cs.status === "idle") return;
-      if (cs.status === "paused") {
-        const result = await waitWhilePaused();
-        if (result === "cancelled") return;
-        // After resume, re-navigate to current page
-        await toTab(tabId, "click-first");
-        await sleep(300);
-        for (let p = 0; p < page; p++) {
-          await toTab(tabId, "click-next");
-        }
-        await sleep(500);
-      }
+      if (!row.jobId) continue;
+      seen++;
 
-      const job = pageJobs[i];
-      if (!job.jobId) continue;
-      if (jobDetails[job.jobId] && !jobDetails[job.jobId]._error) continue;
+      if (jobDetails[row.jobId] && !jobDetails[row.jobId]._error) continue;
 
-      const globalIdx = page * pageSize + i + 1;
       await setState({
-        statusText: `Page ${page + 1}/${totalPages} — job ${i + 1}/${pageJobs.length}`,
-        progress: { current: globalIdx, total: jobs.length, label: `${globalIdx}/${jobs.length}: ${job.title}` },
+        statusText: `Page ${page} — ${seen}/${total}`,
+        progress: {
+          current: seen,
+          total,
+          label: `${seen}/${total}: ${titles.get(row.jobId) || row.title || row.jobId}`,
+        },
       });
 
-      const clickResult = await toTab(tabId, "click-job", { jobId: job.jobId });
+      const clickResult = await toTab(tabId, "click-job", { jobId: row.jobId });
       if (clickResult.error) {
-        jobDetails[job.jobId] = { _error: clickResult.message };
+        jobDetails[row.jobId] = { _error: clickResult.message };
+        lastError = clickResult.message;
+        await setState({ jobDetails });
         continue;
       }
 
-      await sleep(1000);
-
-      const detail = await toTab(tabId, "scrape-detail", { jobId: job.jobId });
-      if (detail && !detail.error) {
-        jobDetails[job.jobId] = detail.detail;
-
-        // Try to scrape Work Term Ratings tab
-        const tabClick = await toTab(tabId, "click-ratings-tab");
-        if (tabClick.ok) {
-          await sleep(800);
-          const ratingsResult = await toTab(tabId, "scrape-ratings");
-          if (ratingsResult.ok && ratingsResult.ratings) {
-            jobDetails[job.jobId]._workTermRatings = ratingsResult.ratings;
-          }
-          await toTab(tabId, "click-overview-tab");
-          await sleep(300);
-        }
-
-        successCount++;
-      } else {
-        jobDetails[job.jobId] = { _error: detail?.message || "Failed" };
+      // No fixed delay: scrape-detail waits for the viewer to show this id.
+      const detail = await toTab(tabId, "scrape-detail", { jobId: row.jobId });
+      if (!detail || detail.error) {
+        jobDetails[row.jobId] = { _error: detail?.message || "Failed" };
+        lastError = detail?.message || "Failed";
+        await setState({ jobDetails });
+        continue;
       }
 
-      await setState({ jobDetails });
+      jobDetails[row.jobId] = detail.detail;
 
-      await toTab(tabId, "close-modal");
-      await sleep(400);
+      const tabClick = await toTab(tabId, "click-ratings-tab");
+      if (tabClick.ok) {
+        await sleep(800);
+        const ratingsResult = await toTab(tabId, "scrape-ratings");
+        if (ratingsResult.ok && ratingsResult.ratings) {
+          jobDetails[row.jobId]._workTermRatings = ratingsResult.ratings;
+        }
+        await toTab(tabId, "click-overview-tab");
+        await sleep(300);
+      }
+
+      successCount++;
+      await setState({ jobDetails });
+    }
+
+    const lastCheck = await toTab(tabId, "is-last-page");
+    if (lastCheck.isLast) break;
+
+    const nextResult = await toTab(tabId, "click-next");
+    if (!nextResult.ok) {
+      lastError = `stopped at page ${page}: ${nextResult.message || "navigation failed"}`;
+      break;
     }
   }
 
+  const failed = total - successCount;
+
   await setState({
-    status: "done",
-    statusText: `Done! ${successCount}/${jobs.length} details scraped.`,
+    status: failed > 0 ? "error" : "done",
+    statusText:
+      `Done! ${successCount}/${total} details scraped.` +
+      (lastError ? ` Last error: ${lastError}` : ""),
     jobDetails,
-    progress: { current: jobs.length, total: jobs.length, label: "Complete" },
+    progress: { current: total, total, label: "Complete" },
   });
 }
 

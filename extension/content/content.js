@@ -455,6 +455,18 @@
 
       case "click-job": {
         const rows = document.querySelectorAll(`${TABLE_SEL} ${ROW_SEL}`);
+        // Distinguish a missing list from a row that is genuinely elsewhere:
+        // "not on current page" for all of them reads like a paging bug when
+        // the real cause is that the results are not in table form at all.
+        if (rows.length === 0) {
+          sendResponse({
+            error: true,
+            message: document.querySelector(TABLE_SEL)
+              ? "Job table has no rows"
+              : "No job table on this page — switch the results to table view",
+          });
+          return false;
+        }
         for (const row of rows) {
           if (rowJobId(row) === msg.payload.jobId) {
             const link = row.querySelector("a");
