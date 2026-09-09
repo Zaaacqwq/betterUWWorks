@@ -118,8 +118,13 @@
     return { map, headings };
   }
 
-  // The id is no longer a column, so take it from whatever the row links to.
+  // The id is no longer a column. Every row carries the data viewer's own
+  // selection checkbox, whose value is the posting id — the one place it still
+  // appears verbatim now that the links are all javascript:void(0).
   function rowJobId(row) {
+    const selection = row.querySelector('input[name="dataViewerSelection"]');
+    if (selection?.value) return selection.value.trim();
+
     const href = row.querySelector("a[href]")?.getAttribute("href") || "";
     const fromHref = href.match(/ck_jobid=(\d+)/);
     if (fromHref) return fromHref[1];
@@ -404,8 +409,7 @@
       case "click-job": {
         const rows = document.querySelectorAll(`${TABLE_SEL} ${ROW_SEL}`);
         for (const row of rows) {
-          const idCell = row.querySelector(CELL_SEL);
-          if (idCell && idCell.textContent.trim() === msg.payload.jobId) {
+          if (rowJobId(row) === msg.payload.jobId) {
             const link = row.querySelector("a");
             activate(link || row);
             sendResponse({ ok: true });
