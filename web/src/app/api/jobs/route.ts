@@ -3,6 +3,12 @@ import { db } from "@/db";
 import { jobs } from "@/db/schema";
 import { sql, ilike, and, SQL, desc, asc, gte, eq, inArray, or } from "drizzle-orm";
 
+// The job list page fetches every row in one request so it can score and sort
+// against the resume client-side, so this cap has to clear a full term's
+// postings. Matches the import schema's per-batch ceiling.
+const MAX_LIMIT = 5000;
+const DEFAULT_LIMIT = 20;
+
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const q = params.get("q")?.trim() || "";
@@ -17,7 +23,10 @@ export async function GET(request: NextRequest) {
   const sort = params.get("sort") || "deadline";
   const order = params.get("order") === "asc" ? "asc" : "desc";
   const page = Math.max(1, parseInt(params.get("page") || "1", 10));
-  const limit = Math.min(100, Math.max(1, parseInt(params.get("limit") || "20", 10)));
+  const limit = Math.min(
+    MAX_LIMIT,
+    Math.max(1, parseInt(params.get("limit") || String(DEFAULT_LIMIT), 10))
+  );
   const offset = (page - 1) * limit;
 
   const conditions: SQL[] = [];
