@@ -174,7 +174,7 @@ function scoreProgram(userInfo: UserInfo | null, job: JobForMatch) {
 
   if (!mentions) {
     return {
-      score: 10,
+      score: 15,
       debug: { userProgram: userInfo.program, jobMentionsProgram: false, matched: false },
     };
   }

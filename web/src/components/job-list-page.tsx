@@ -34,7 +34,7 @@ const DEFAULT_FILTERS: Filters = {
   jobType: "",
   minPay: "",
   minRating: "",
-  sort: "deadline",
+  sort: "match",
   order: "desc",
 };
 

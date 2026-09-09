@@ -146,7 +146,7 @@ function ScoreBreakdown({ score }: { score: MatchScore }) {
         {!debug.program.userProgram
           ? "Program not set (neutral 8/15)"
           : !debug.program.jobMentionsProgram
-            ? `Your program: ${debug.program.userProgram} · Job has no program requirement (10/15)`
+            ? `Your program: ${debug.program.userProgram} · No program requirement (15/15)`
             : debug.program.matched
               ? `Your program: ${debug.program.userProgram} · Matches job requirement (15/15)`
               : `Your program: ${debug.program.userProgram} · Does NOT match job requirement (3/15)`}

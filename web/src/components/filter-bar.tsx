@@ -82,7 +82,7 @@ export function FilterBar({ filters, options, onChange, total, activeFilterCount
               { label: "Match Score", value: "match" },
               { label: "Pay", value: "pay" },
               { label: "Rating", value: "rating" },
-              { label: "Most Hires", value: "hires" },
+
               { label: "Title", value: "title" },
             ]}
             noAll
