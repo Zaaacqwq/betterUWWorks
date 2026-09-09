@@ -25,17 +25,46 @@
     });
   }
 
-  function waitForTableChange(oldFirstId, timeout = 10000) {
+  // Signature of every job id currently rendered, so we can tell a half-swapped
+  // table from a finished one.
+  function tableSignature() {
+    const rows = document.querySelectorAll(`${TABLE_SEL} ${ROW_SEL}`);
+    return Array.from(rows)
+      .map((row) => row.querySelector(CELL_SEL)?.textContent?.trim() || "")
+      .join(",");
+  }
+
+  // WaterlooWorks re-renders the table in several passes: the first row updates
+  // before the rest of the body has been replaced. Resolving as soon as the
+  // first cell changed let a scrape read a half-updated table, which yielded
+  // rows duplicated from the previous page and silently dropped the postings
+  // that had not rendered yet. So require both that the page advanced and that
+  // the full row set stopped changing for `settleMs`.
+  function waitForTableChange(oldFirstId, timeout = 20000, settleMs = 500) {
     return new Promise((resolve, reject) => {
-      const check = () => {
-        const cell = document.querySelector(`${TABLE_SEL} ${ROW_SEL} ${CELL_SEL}`);
-        return cell?.textContent?.trim() !== oldFirstId;
+      const start = Date.now();
+      let lastSig = null;
+      let stableSince = 0;
+
+      const tick = () => {
+        const sig = tableSignature();
+        const firstId = sig.split(",")[0] || "";
+
+        if (sig !== lastSig) {
+          lastSig = sig;
+          stableSince = Date.now();
+        }
+
+        const advanced = firstId !== "" && firstId !== oldFirstId;
+        if (advanced && Date.now() - stableSince >= settleMs) return resolve();
+
+        if (Date.now() - start >= timeout) {
+          return reject(new Error("Table did not settle on a new page"));
+        }
+        setTimeout(tick, 150);
       };
-      if (check()) return resolve();
-      const observer = new MutationObserver(() => { if (check()) { observer.disconnect(); resolve(); } });
-      const table = document.querySelector(TABLE_SEL);
-      if (table) observer.observe(table, { childList: true, subtree: true, characterData: true });
-      setTimeout(() => { observer.disconnect(); reject(new Error("Table change timeout")); }, timeout);
+
+      tick();
     });
   }
 
@@ -260,7 +289,7 @@
         if (link && !link.classList.contains("disabled")) {
           const oldId = getFirstId();
           link.click();
-          waitForTableChange(oldId).then(() => sleep(300)).then(() => sendResponse({ ok: true }))
+          waitForTableChange(oldId).then(() => sendResponse({ ok: true }))
             .catch(() => sendResponse({ ok: true }));
         } else {
           sendResponse({ ok: true });
@@ -274,7 +303,7 @@
         if (nextLink && !nextLink.classList.contains("disabled")) {
           const oldId = getFirstId();
           nextLink.click();
-          waitForTableChange(oldId).then(() => sleep(300)).then(() => sendResponse({ ok: true }))
+          waitForTableChange(oldId).then(() => sendResponse({ ok: true }))
             .catch(() => sendResponse({ ok: false, message: "Table didn't change" }));
         } else {
           sendResponse({ ok: false, message: "No next page" });

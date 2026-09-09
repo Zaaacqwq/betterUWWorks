@@ -52,7 +52,10 @@ async function scrapeAllPages(tabId) {
   await sleep(500);
 
   const allJobs = [];
+  const seenIds = new Set();
   let page = 0;
+  let duplicates = 0;
+  let incomplete = null;
 
   while (true) {
     const s = await getState();
@@ -68,13 +71,33 @@ async function scrapeAllPages(tabId) {
       progress: { current: allJobs.length, total: 0, label: `Page ${page} — ${allJobs.length} jobs so far` },
     });
 
-    const result = await toTab(tabId, "scrape-page");
-    if (result.error) {
-      await setState({ status: "error", statusText: "Error: " + result.message });
-      return;
+    // A page whose rows we have all seen before means we read the table while
+    // it was still showing the previous page, so the postings that belong here
+    // were never captured. Re-read before moving on rather than losing them.
+    let result = null;
+    let fresh = [];
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await sleep(1000);
+
+      result = await toTab(tabId, "scrape-page");
+      if (result.error) {
+        await setState({ status: "error", statusText: "Error: " + result.message });
+        return;
+      }
+
+      fresh = result.jobs.filter((job) => job.jobId && !seenIds.has(job.jobId));
+      if (fresh.length > 0 || result.jobs.length === 0) break;
     }
 
-    allJobs.push(...result.jobs);
+    duplicates += result.jobs.length - fresh.length;
+    for (const job of fresh) seenIds.add(job.jobId);
+    allJobs.push(...fresh);
+
+    if (fresh.length === 0 && result.jobs.length > 0) {
+      incomplete = `page ${page} never loaded`;
+      break;
+    }
+
     await setState({
       jobs: allJobs,
       progress: { current: allJobs.length, total: result.totalResults || allJobs.length, label: `Page ${page} — ${allJobs.length} jobs` },
@@ -84,14 +107,25 @@ async function scrapeAllPages(tabId) {
     if (lastCheck.isLast) break;
 
     const nextResult = await toTab(tabId, "click-next");
-    if (!nextResult.ok) break;
+    if (!nextResult.ok) {
+      incomplete = `stopped at page ${page} (${nextResult.message || "navigation failed"})`;
+      break;
+    }
   }
 
   await toTab(tabId, "click-first");
 
+  // Report what was actually captured. A silent count hid the fact that pages
+  // were being re-read and postings dropped.
+  const notes = [];
+  if (duplicates > 0) notes.push(`${duplicates} duplicate row(s) skipped`);
+  if (incomplete) notes.push(`incomplete: ${incomplete}`);
+
   await setState({
-    status: "done",
-    statusText: `Found ${allJobs.length} jobs from ${page} page(s).`,
+    status: incomplete ? "error" : "done",
+    statusText:
+      `Found ${allJobs.length} jobs from ${page} page(s).` +
+      (notes.length > 0 ? ` (${notes.join("; ")})` : ""),
     jobs: allJobs,
     progress: { current: allJobs.length, total: allJobs.length, label: "Done" },
   });
