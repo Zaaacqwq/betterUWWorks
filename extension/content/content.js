@@ -25,6 +25,26 @@
     });
   }
 
+  // WaterlooWorks wires its controls as <a href="javascript:..."> with the real
+  // work in a click handler. Chrome checks such a URL against the *extension's*
+  // CSP when a content script triggers it and blocks it, logging a violation on
+  // the extension even though the handler already did the job. Suppress the
+  // navigation we know is dead so the handler runs without the noise.
+  function activate(el) {
+    const href = el.getAttribute("href") || "";
+    if (!href.toLowerCase().startsWith("javascript:")) {
+      el.click();
+      return;
+    }
+    const suppress = (event) => event.preventDefault();
+    el.addEventListener("click", suppress);
+    try {
+      el.click();
+    } finally {
+      el.removeEventListener("click", suppress);
+    }
+  }
+
   // Signature of every job id currently rendered, so we can tell a half-swapped
   // table from a finished one.
   function tableSignature() {
@@ -288,7 +308,7 @@
         const link = items[0]?.querySelector(".pagination__link");
         if (link && !link.classList.contains("disabled")) {
           const oldId = getFirstId();
-          link.click();
+          activate(link);
           waitForTableChange(oldId).then(() => sendResponse({ ok: true }))
             .catch(() => sendResponse({ ok: true }));
         } else {
@@ -302,7 +322,7 @@
         const nextLink = items.length >= 2 ? items[items.length - 2]?.querySelector(".pagination__link") : null;
         if (nextLink && !nextLink.classList.contains("disabled")) {
           const oldId = getFirstId();
-          nextLink.click();
+          activate(nextLink);
           waitForTableChange(oldId).then(() => sendResponse({ ok: true }))
             .catch(() => sendResponse({ ok: false, message: "Table didn't change" }));
         } else {
@@ -317,7 +337,7 @@
           const idCell = row.querySelector(CELL_SEL);
           if (idCell && idCell.textContent.trim() === msg.payload.jobId) {
             const link = row.querySelector("a");
-            (link || row).click();
+            activate(link || row);
             sendResponse({ ok: true });
             return false;
           }
@@ -341,7 +361,7 @@
         let clicked = false;
         for (const tab of tabLinks) {
           if (tab.textContent.trim().toUpperCase().includes("WORK TERM RATING")) {
-            tab.click();
+            activate(tab);
             clicked = true;
             break;
           }
@@ -362,7 +382,7 @@
         const tabLinks = modal.querySelectorAll("a.items");
         for (const tab of tabLinks) {
           if (tab.textContent.trim().toUpperCase().includes("OVERVIEW")) {
-            tab.click();
+            activate(tab);
             sendResponse({ ok: true });
             return false;
           }
@@ -375,7 +395,7 @@
         const modal = document.querySelector(JOB_MODAL_SEL);
         if (modal) {
           const btn = modal.querySelector("[class*='close'], .material-icons");
-          if (btn) btn.click();
+          if (btn) activate(btn);
         }
         sendResponse({ ok: true });
         return false;
