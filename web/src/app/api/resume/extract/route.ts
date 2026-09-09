@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import { models, FAST_OPTIONS } from "@/lib/ai/provider";
 import { RESUME_EXTRACT_SYSTEM, resumeExtractPrompt } from "@/lib/ai/prompts";
+import { AiJsonError, parseAiJson } from "@/lib/ai/json";
 import type { Capability, EvidenceType, ResumeProfile, Skill } from "@/lib/resume/types";
 
 const VALID_EVIDENCE_TYPES = new Set<EvidenceType>(["work_used", "project_used", "explicit", "inferred", "weak_inferred"]);
@@ -20,6 +21,12 @@ function parseCapability(raw: Record<string, unknown>): Capability | null {
     confidence: Math.max(0, Math.min(1, typeof raw.confidence === "number" ? raw.confidence : 0.5)),
     reasoning: typeof raw.reasoning === "string" ? raw.reasoning : "",
   };
+}
+
+// The model is free to answer with a number, an object, or nothing at all for
+// these, so keep only an actual string.
+function asText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function capabilitiesToSkills(capabilities: Capability[]): Skill[] {
@@ -64,11 +71,9 @@ export async function POST(request: Request) {
     prompt: resumeExtractPrompt(text.slice(0, 30000)),
   });
 
-  const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-
   let profile: ResumeProfile;
   try {
-    const parsed = JSON.parse(cleaned);
+    const parsed = parseAiJson<Record<string, unknown>>(raw, "resume extraction");
 
     const rawCaps = Array.isArray(parsed.capabilities) ? parsed.capabilities : [];
     const capabilities = rawCaps
@@ -88,14 +93,17 @@ export async function POST(request: Request) {
       coopTermCount: typeof parsed.coopTermCount === "number" ? parsed.coopTermCount : 0,
       programs: Array.isArray(parsed.programs) ? parsed.programs : [],
       preferredLocations: Array.isArray(parsed.preferredLocations) ? parsed.preferredLocations : [],
-      preferredArrangement: parsed.preferredArrangement ?? null,
-      preferredDuration: parsed.preferredDuration ?? null,
+      preferredArrangement: asText(parsed.preferredArrangement),
+      preferredDuration: asText(parsed.preferredDuration),
       summary: typeof parsed.summary === "string" ? parsed.summary : "",
       extractedAt: new Date().toISOString(),
     };
-  } catch {
+  } catch (err) {
+    // Say what came back. "Please try again" gave no way to tell a malformed
+    // reply from a model that had stopped answering at all.
+    const detail = err instanceof AiJsonError ? err.message : "unreadable response";
     return Response.json(
-      { success: false, error: "Failed to parse AI response. Please try again." },
+      { success: false, error: `Could not read the AI response (${detail}).` },
       { status: 422 }
     );
   }

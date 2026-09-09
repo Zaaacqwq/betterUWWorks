@@ -13,9 +13,12 @@ const opencode = createOpenAICompatible({
   headers: { "x-opencode-session": SESSION_ID },
 });
 
+// One model for everything. deepseek-v4-pro was measured against
+// glm-5.3-flash on skill extraction and produced equivalent output (17 vs 18
+// skills) while taking two to five times as long, so there is nothing here for
+// a second, slower tier to do.
 export const models = {
   fast: opencode("glm-5.3-flash"),
-  smart: opencode("deepseek-v4-pro"),
 } as const;
 
 // Every model on this gateway reasons by default and none allow disabling it
