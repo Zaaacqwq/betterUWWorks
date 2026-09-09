@@ -60,8 +60,11 @@
     const jobCount = s.jobs?.length || 0;
     const details = s.jobDetails || {};
     const detailKeys = Object.keys(details);
-    const successCount = detailKeys.filter((k) => !details[k]._error).length;
-    const errorCount = detailKeys.filter((k) => details[k]._error).length;
+    // Mirrors the background's rule: a detail with no fields is not a success,
+    // however cleanly it was fetched.
+    const hasFields = (d) => d && !d._error && Object.keys(d).some((k) => !k.startsWith("_"));
+    const successCount = detailKeys.filter((k) => hasFields(details[k])).length;
+    const errorCount = detailKeys.length - successCount;
     statJobs.textContent = jobCount;
     statDetails.textContent = successCount;
     statErrors.textContent = errorCount;

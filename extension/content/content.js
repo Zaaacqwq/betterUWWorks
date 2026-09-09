@@ -222,22 +222,60 @@
     "COMPENSATION AND BENEFITS", "TARGETED DEGREES AND DISCIPLINES", "SPECIAL JOB REQUIREMENTS",
   ]);
 
-  // Resolves once the open posting is the one asked for. The viewer prints the
-  // id near the top of its own text, which is the only marker distinguishing
-  // one posting from the last.
-  function waitForJobDetail(jobId, timeout = 15000) {
+  const OVERVIEW_MARKER = "JOB POSTING INFORMATION";
+
+  function findTab(modal, label) {
+    return Array.from(modal.querySelectorAll("a.items")).find((t) =>
+      t.textContent.trim().toUpperCase().includes(label)
+    );
+  }
+
+  function showOverviewTab() {
+    const modal = document.querySelector(JOB_MODAL_SEL);
+    const tab = modal && findTab(modal, "OVERVIEW");
+    if (tab) activate(tab);
+    return !!tab;
+  }
+
+  function panelText(modal) {
+    return Array.from(modal.querySelectorAll("[id^='panel_']"))
+      .map((p) => p.innerText)
+      .join("\n");
+  }
+
+  // Resolves once the open posting is the one asked for *and* its fields have
+  // arrived. The viewer paints its header, id included, before the panels are
+  // filled in, so resolving on the id alone captured documents with no fields
+  // in them — 15 postings came back holding nothing but their ratings chart.
+  function waitForJobDetail(jobId, timeout = 20000, settleMs = 300) {
     return new Promise((resolve, reject) => {
       const start = Date.now();
+      let lastLen = -1;
+      let stableSince = 0;
 
       const tick = () => {
         const modal = document.querySelector(JOB_MODAL_SEL);
-        if (modal && (!jobId || modal.innerText.includes(jobId))) return resolve(modal);
+        const text = modal ? panelText(modal) : "";
+
+        if (text.length !== lastLen) {
+          lastLen = text.length;
+          stableSince = Date.now();
+        }
+
+        const isThisJob = modal && (!jobId || modal.innerText.includes(jobId));
+        const loaded = text.includes(OVERVIEW_MARKER);
+        if (isThisJob && loaded && Date.now() - stableSince >= settleMs) return resolve(modal);
 
         if (Date.now() - start >= timeout) {
-          reject(new Error(jobId ? `Posting ${jobId} did not open` : "No job detail found"));
+          const why = !modal
+            ? "viewer never opened"
+            : !isThisJob
+              ? "viewer stayed on another posting"
+              : "fields never loaded";
+          reject(new Error(`Posting ${jobId}: ${why}`));
           return;
         }
-        setTimeout(tick, 150);
+        setTimeout(tick, 100);
       };
 
       tick();
@@ -484,6 +522,9 @@
         // being present says nothing about which posting it holds. Wait until
         // it shows the id we asked for, or the previous posting's detail gets
         // recorded against this one.
+        // The previous posting left the viewer on its ratings tab if that
+        // scrape ran, so put it back on the overview before reading fields.
+        showOverviewTab();
         waitForJobDetail(msg.payload?.jobId)
           .then(() => sendResponse(scrapeJobDetail()))
           .catch((e) => sendResponse({ error: true, message: e.message }));
@@ -513,17 +554,7 @@
       }
 
       case "click-overview-tab": {
-        const modal = document.querySelector(JOB_MODAL_SEL);
-        if (!modal) { sendResponse({ ok: false }); return false; }
-        const tabLinks = modal.querySelectorAll("a.items");
-        for (const tab of tabLinks) {
-          if (tab.textContent.trim().toUpperCase().includes("OVERVIEW")) {
-            activate(tab);
-            sendResponse({ ok: true });
-            return false;
-          }
-        }
-        sendResponse({ ok: false });
+        sendResponse({ ok: showOverviewTab() });
         return false;
       }
 

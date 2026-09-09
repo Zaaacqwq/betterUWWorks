@@ -164,6 +164,15 @@ async function scrapeAllPages(tabId) {
   });
 }
 
+// A detail counts as captured only if it actually carries fields. A run that
+// read the viewer before its panels loaded stored objects holding nothing but
+// a ratings chart; those are not errors, so treating "no _error" as done would
+// have skipped them for good on the next pass.
+function hasFields(detail) {
+  if (!detail || detail._error) return false;
+  return Object.keys(detail).some((k) => !k.startsWith("_"));
+}
+
 // === Scrape details ===
 async function scrapeDetails(tabId) {
   const state = await getState();
@@ -183,7 +192,7 @@ async function scrapeDetails(tabId) {
 
   await toTab(tabId, "click-first");
 
-  let successCount = Object.keys(jobDetails).filter((id) => !jobDetails[id]._error).length;
+  let successCount = Object.keys(jobDetails).filter((id) => hasFields(jobDetails[id])).length;
   let seen = 0;
   let page = 0;
   let lastError = null;
@@ -213,7 +222,7 @@ async function scrapeDetails(tabId) {
       if (!row.jobId) continue;
       seen++;
 
-      if (jobDetails[row.jobId] && !jobDetails[row.jobId]._error) continue;
+      if (hasFields(jobDetails[row.jobId])) continue;
 
       await setState({
         statusText: `Page ${page} — ${seen}/${total}`,
