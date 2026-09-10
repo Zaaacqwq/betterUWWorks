@@ -245,7 +245,17 @@
       });
     }
 
-    return { error: false, jobs, missingIds };
+    return { error: false, jobs, missingIds, pageNumber: currentPageNumber() };
+  }
+
+  // The page the list is actually showing. A counter in the background cannot
+  // know this: signing back in drops the list to page one under it.
+  function currentPageNumber() {
+    const active = document.querySelector(
+      ".pagination__item.is--active .pagination__link, .pagination__item .pagination__link.active, .pagination__item.active .pagination__link"
+    );
+    const n = parseInt((active?.textContent || "").trim(), 10);
+    return Number.isInteger(n) ? n : null;
   }
 
   function getFirstId() {

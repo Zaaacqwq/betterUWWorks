@@ -253,7 +253,6 @@ async function scrapeDetailsInner(tabId) {
   await toTab(tabId, "click-first");
 
   let successCount = Object.keys(jobDetails).filter((id) => hasFields(jobDetails[id])).length;
-  let seen = 0;
   let page = 0;
   let lastError = null;
 
@@ -268,7 +267,7 @@ async function scrapeDetailsInner(tabId) {
       status: "error",
       statusText: `Stopped after ${successCount}/${total}: ${why}`,
       jobDetails,
-      progress: { current: seen, total, label: "Stopped" },
+      progress: { current: successCount, total, label: "Stopped" },
     });
 
   while (true) {
@@ -293,12 +292,13 @@ async function scrapeDetailsInner(tabId) {
     // the popup sat on the first page's count and its stall check, which reads
     // the same heartbeat, called a working run dead.
     const pending = pageResult.jobs.filter((j) => j.jobId && !hasFields(jobDetails[j.jobId]));
+    const pageLabel = pageResult.pageNumber ? `Page ${pageResult.pageNumber}` : `Page ${page}`;
     await setState({
       statusText:
         pending.length === 0
-          ? `Page ${page} — ${pageResult.jobs.length} already captured, moving on`
-          : `Page ${page} — ${pending.length} to fetch`,
-      progress: { current: seen, total, label: `Page ${page}` },
+          ? `${pageLabel} — all ${pageResult.jobs.length} already captured, moving on`
+          : `${pageLabel} — ${pending.length} to fetch`,
+      progress: { current: successCount, total, label: pageLabel },
     });
 
     // Whatever page we end up looking at after a pause, the ids gathered above
@@ -316,16 +316,18 @@ async function scrapeDetailsInner(tabId) {
       }
 
       if (!row.jobId) continue;
-      seen++;
-
       if (hasFields(jobDetails[row.jobId])) continue;
 
+      // Progress counts postings captured, not rows walked past. Walking the
+      // list again after signing back in revisits everything already done, and
+      // counting those made the bar claim 69% while two thirds of the postings
+      // still had nothing.
       await setState({
-        statusText: `Page ${page} — ${seen}/${total}`,
+        statusText: `${pageLabel} — ${successCount}/${total} captured`,
         progress: {
-          current: seen,
+          current: successCount,
           total,
-          label: `${seen}/${total}: ${titles.get(row.jobId) || row.title || row.jobId}`,
+          label: `${titles.get(row.jobId) || row.title || row.jobId}`,
         },
       });
 
@@ -378,7 +380,7 @@ async function scrapeDetailsInner(tabId) {
     const lastCheck = await toTab(tabId, "is-last-page");
     if (lastCheck.isLast) break;
 
-    await setState({ statusText: `Turning to page ${page + 1}...` });
+    await setState({ statusText: `${pageLabel} done — turning the page...` });
     const nextResult = await toTab(tabId, "click-next");
     if (!nextResult.ok) {
       lastError = `stopped at page ${page}: ${nextResult.message || "navigation failed"}`;
