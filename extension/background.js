@@ -69,18 +69,50 @@ let keepAliveTimer = null;
 // right — after a restart there is no loop, and resume has to start one.
 let runningLoop = null;
 
+// An interval cannot save a run on its own: it dies with the worker it lives
+// in and has no way to bring it back. An alarm can — Chrome wakes the worker to
+// deliver it — so the interval keeps a healthy worker from going idle and the
+// alarm restarts the loop when one was reclaimed anyway.
+const WATCHDOG = "buw-watchdog";
+
 function startKeepAlive() {
-  if (keepAliveTimer) return;
-  keepAliveTimer = setInterval(() => {
-    chrome.runtime.getPlatformInfo().catch(() => {});
-  }, 20000);
+  if (!keepAliveTimer) {
+    keepAliveTimer = setInterval(() => {
+      try {
+        chrome.runtime.getPlatformInfo(() => void chrome.runtime.lastError);
+      } catch {
+        /* worker is going away; the alarm will bring the run back */
+      }
+    }, 20000);
+  }
+  chrome.alarms.create(WATCHDOG, { periodInMinutes: 0.5 });
 }
 
 function stopKeepAlive() {
-  if (!keepAliveTimer) return;
-  clearInterval(keepAliveTimer);
-  keepAliveTimer = null;
+  if (keepAliveTimer) {
+    clearInterval(keepAliveTimer);
+    keepAliveTimer = null;
+  }
+  chrome.alarms.clear(WATCHDOG);
 }
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== WATCHDOG) return;
+
+  const state = await getState();
+  const active = state.status === "scraping-list" || state.status === "scraping-details";
+
+  // Paused is the user's decision, not a fault — leave it alone.
+  if (!active) {
+    chrome.alarms.clear(WATCHDOG);
+    return;
+  }
+  if (runningLoop || !state.tabId) return;
+
+  await setState({ statusText: "Picking the run back up after a restart..." });
+  if (state.stage === "list") scrapeAllPages(state.tabId);
+  else scrapeDetails(state.tabId);
+});
 
 // Reloading the extension tears down the content script in tabs that are
 // already open, and the manifest only re-injects it on navigation, so the first
