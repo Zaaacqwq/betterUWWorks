@@ -320,6 +320,7 @@ async function scrapeDetailsInner(tabId) {
   // wherever it got to.
   const FROZEN_LIMIT = 2;
   let frozenStreak = 0;
+  let walkedWholeList = false;
 
   const giveUp = async (why) =>
     setState({
@@ -454,7 +455,10 @@ async function scrapeDetailsInner(tabId) {
     }
 
     const lastCheck = await toTab(tabId, "is-last-page");
-    if (lastCheck.isLast) break;
+    if (lastCheck.isLast) {
+      walkedWholeList = true;
+      break;
+    }
 
     await setState({ statusText: `${pageLabel} done — turning the page...` });
     const nextResult = await toTab(tabId, "click-next");
@@ -464,12 +468,30 @@ async function scrapeDetailsInner(tabId) {
     }
   }
 
+  // A detail can outlive its posting: a job taken down between runs leaves an
+  // entry no page will ever show again. It cannot be synced — the payload is
+  // built from the job list — so it only inflates the count and takes up room.
+  // Only safe once the whole list has been walked; a run that stopped early has
+  // simply not reached those rows yet.
+  let dropped = 0;
+  if (walkedWholeList) {
+    const known = new Set(knownJobs.map((j) => j.jobId));
+    for (const id of Object.keys(jobDetails)) {
+      if (!known.has(id)) {
+        delete jobDetails[id];
+        dropped++;
+      }
+    }
+    successCount = Object.keys(jobDetails).filter((id) => hasFields(jobDetails[id])).length;
+  }
+
   const failed = total - successCount;
 
   await setState({
     status: failed > 0 ? "error" : "done",
     statusText:
       `Done! ${successCount}/${total} details scraped.` +
+      (dropped > 0 ? ` (${dropped} for postings no longer listed were dropped)` : "") +
       (lastError ? ` Last error: ${lastError}` : ""),
     jobDetails,
     progress: { current: total, total, label: "Complete" },
