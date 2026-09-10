@@ -189,7 +189,6 @@ async function scrapeAllPagesInner(tabId) {
     const lastCheck = await toTab(tabId, "is-last-page");
     if (lastCheck.isLast) break;
 
-    await setState({ statusText: `Turning to page ${page + 1}...` });
     const nextResult = await toTab(tabId, "click-next");
     if (!nextResult.ok) {
       incomplete = `stopped at page ${page} (${nextResult.message || "navigation failed"})`;
@@ -302,10 +301,19 @@ async function scrapeDetailsInner(tabId) {
       progress: { current: seen, total, label: `Page ${page}` },
     });
 
+    // Whatever page we end up looking at after a pause, the ids gathered above
+    // may belong to a page that is no longer shown — signing back in drops the
+    // list to page one — so re-read rather than clicking for rows that moved.
+    let rescanPage = false;
+
     for (const row of pageResult.jobs) {
       const inner = await getState();
       if (inner.status === "idle") return;
-      if (inner.status === "paused" && (await waitWhilePaused()) === "cancelled") return;
+      if (inner.status === "paused") {
+        if ((await waitWhilePaused()) === "cancelled") return;
+        rescanPage = true;
+        break;
+      }
 
       if (!row.jobId) continue;
       seen++;
@@ -361,9 +369,16 @@ async function scrapeDetailsInner(tabId) {
       await setState({ jobDetails });
     }
 
+    if (rescanPage) {
+      page--;
+      await setState({ statusText: "Resumed — re-reading the page that is showing..." });
+      continue;
+    }
+
     const lastCheck = await toTab(tabId, "is-last-page");
     if (lastCheck.isLast) break;
 
+    await setState({ statusText: `Turning to page ${page + 1}...` });
     const nextResult = await toTab(tabId, "click-next");
     if (!nextResult.ok) {
       lastError = `stopped at page ${page}: ${nextResult.message || "navigation failed"}`;

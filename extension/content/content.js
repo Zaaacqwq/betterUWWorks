@@ -19,14 +19,31 @@
   // and nobody is watching to click it, so the site logged out around 700
   // postings in and the rest of the run had nothing to read. Answer the dialog
   // ourselves; it is the one modal the job viewer selector deliberately skips.
-  function keepSessionAlive() {
-    const modal = document.querySelector("#keepMeLoggedInModal");
-    if (!modal || modal.offsetParent === null) return false;
+  // offsetParent is null for any position: fixed element, which a modal always
+  // is, so it cannot be used to decide whether this dialog is showing.
+  function isVisible(el) {
+    if (!el) return false;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return false;
+    const style = getComputedStyle(el);
+    return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
+  }
 
-    const button = Array.from(modal.querySelectorAll("button, a")).find((el) =>
-      /keep\s+me\s+(logged|signed)\s+in/i.test(el.textContent || "")
+  const KEEP_ALIVE_TEXT = /keep\s+me\s+(logged|signed)\s+in/i;
+  let lastKeepAlive = 0;
+
+  function keepSessionAlive() {
+    // Search the whole document rather than one id: the button is what matters,
+    // and it is distinctive enough to find on its own.
+    const button = Array.from(document.querySelectorAll("button, a, input[type=button], input[type=submit]")).find(
+      (el) => KEEP_ALIVE_TEXT.test(el.textContent || el.value || "") && isVisible(el)
     );
     if (!button) return false;
+
+    // The dialog can linger a moment after answering; don't hammer it.
+    const now = Date.now();
+    if (now - lastKeepAlive < 30000) return false;
+    lastKeepAlive = now;
 
     activate(button);
     console.log("[buw] dismissed the session timeout prompt");
