@@ -56,10 +56,6 @@
 
   setInterval(keepSessionAlive, 5000);
 
-  function sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
-  }
-
   function waitForElement(selector, timeout = 15000) {
     return new Promise((resolve, reject) => {
       const el = document.querySelector(selector);

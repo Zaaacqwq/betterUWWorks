@@ -46,6 +46,7 @@ const TAB_REPLY_TIMEOUT = 75000;
 function toTab(tabId, action, payload, timeout = TAB_REPLY_TIMEOUT) {
   return new Promise((resolve) => {
     let settled = false;
+    let timer = null;
     const finish = (value) => {
       if (settled) return;
       settled = true;
@@ -53,7 +54,7 @@ function toTab(tabId, action, payload, timeout = TAB_REPLY_TIMEOUT) {
       resolve(value);
     };
 
-    const timer = setTimeout(
+    timer = setTimeout(
       () => finish({ error: true, timedOut: true, message: `page did not answer "${action}" in ${Math.round(timeout / 1000)}s (tab may be frozen — keep it the active tab)` }),
       timeout
     );
@@ -336,7 +337,7 @@ async function scrapeDetails(tabId) {
 
 async function scrapeDetailsInner(tabId) {
   const state = await getState();
-  if (total === 0) return;
+  if (state.jobs.length === 0) return;
 
   const ready = await ensureContentScript(tabId);
   if (!ready.ok) {
