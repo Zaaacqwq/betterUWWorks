@@ -320,11 +320,16 @@ async function fetchSyncedDetailIds() {
 
     const result = await resp.json();
     const ids = new Set(result?.data?.jobIds || []);
+    console.log(`[buw] web app already holds ${ids.size} detail(s)`);
+    if (ids.size === 0) {
+      return { ids, note: "web app holds no details yet, scraping everything" };
+    }
     return { ids, note: null };
   } catch (err) {
     // Being unreachable is not a reason to refuse to scrape — but it does mean
     // hours of avoidable work, so it has to be said out loud rather than
     // quietly turning into a full re-scrape.
+    console.error("[buw] could not ask the web app what it already has:", err);
     return { ids: new Set(), note: `web app unreachable (${err?.message || err}), scraping everything` };
   }
 }
@@ -369,7 +374,16 @@ async function scrapeDetailsInner(tabId) {
 
   await toTab(tabId, "click-first");
 
-  let successCount = Object.keys(jobDetails).filter((id) => hasFields(jobDetails[id])).length;
+  // A posting the web app already holds is captured, wherever the bytes sit.
+  // Counting only the local copy made a run that had 2098 of 2170 in hand open
+  // at zero and quote an hour and a half of work it was not going to do.
+  const captured = new Set(
+    Object.keys(jobDetails).filter((id) => hasFields(jobDetails[id]))
+  );
+  for (const job of knownJobs) {
+    if (alreadySynced.has(job.jobId)) captured.add(job.jobId);
+  }
+  let successCount = captured.size;
   let page = 0;
   let lastError = null;
 
@@ -409,13 +423,15 @@ async function scrapeDetailsInner(tabId) {
     // done are skipped without a word. With no state written for a whole page
     // the popup sat on the first page's count and its stall check, which reads
     // the same heartbeat, called a working run dead.
-    const pending = pageResult.jobs.filter((j) => j.jobId && !hasFields(jobDetails[j.jobId]));
+    const pending = pageResult.jobs.filter(
+      (j) => j.jobId && !hasFields(jobDetails[j.jobId]) && !alreadySynced.has(j.jobId)
+    );
     const pageLabel = pageResult.pageNumber ? `Page ${pageResult.pageNumber}` : `Page ${page}`;
     await setState({
       statusText:
-        pending.length === 0
+        (pending.length === 0
           ? `${pageLabel} — all ${pageResult.jobs.length} already captured, moving on`
-          : `${pageLabel} — ${pending.length} to fetch`,
+          : `${pageLabel} — ${pending.length} to fetch`) + (skipNote ? ` · ${skipNote}` : ""),
       progress: { current: successCount, total, label: pageLabel },
     });
 
@@ -444,6 +460,10 @@ async function scrapeDetailsInner(tabId) {
         knownJobs.push(row);
         titles.set(row.jobId, row.title);
         total = knownJobs.length;
+        if (alreadySynced.has(row.jobId)) {
+          captured.add(row.jobId);
+          successCount = captured.size;
+        }
         await setState({ jobs: knownJobs });
       }
 
@@ -458,7 +478,7 @@ async function scrapeDetailsInner(tabId) {
       // counting those made the bar claim 69% while two thirds of the postings
       // still had nothing.
       await setState({
-        statusText: `${pageLabel} — ${successCount}/${total} captured`,
+        statusText: `${pageLabel} — ${successCount}/${total} captured` + (skipNote ? ` · ${skipNote}` : ""),
         progress: {
           current: successCount,
           total,
@@ -502,7 +522,8 @@ async function scrapeDetailsInner(tabId) {
         await sleep(300);
       }
 
-      successCount++;
+      captured.add(row.jobId);
+      successCount = captured.size;
       await setState({ jobDetails });
     }
 
@@ -540,7 +561,9 @@ async function scrapeDetailsInner(tabId) {
         dropped++;
       }
     }
-    successCount = Object.keys(jobDetails).filter((id) => hasFields(jobDetails[id])).length;
+    successCount = knownJobs.filter(
+      (j) => hasFields(jobDetails[j.jobId]) || alreadySynced.has(j.jobId)
+    ).length;
   }
 
   const failed = total - successCount;
