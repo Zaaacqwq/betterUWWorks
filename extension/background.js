@@ -176,7 +176,13 @@ async function scrapeAllPages(tabId) {
 }
 
 async function scrapeAllPagesInner(tabId) {
-  await setState({ status: "scraping-list", stage: "list", statusText: "Starting...", jobs: [], jobDetails: {}, tabId });
+  // Details are keyed by posting id and cost hours to gather, so a fresh list
+  // keeps them: re-scraping the list used to throw every one away, and a term's
+  // worth was one unlucky click from being lost. Postings that have since been
+  // taken down are pruned once the new list is known.
+  const carriedDetails = (await getState()).jobDetails || {};
+
+  await setState({ status: "scraping-list", stage: "list", statusText: "Starting...", jobs: [], tabId });
 
   const ready = await ensureContentScript(tabId);
   if (!ready.ok) {
@@ -255,7 +261,18 @@ async function scrapeAllPagesInner(tabId) {
 
   // Report what was actually captured. A silent count hid the fact that pages
   // were being re-read and postings dropped.
+  const listedIds = new Set(allJobs.map((j) => j.jobId));
+  const jobDetails = {};
+  let keptDetails = 0;
+  for (const [id, detail] of Object.entries(carriedDetails)) {
+    if (listedIds.has(id)) {
+      jobDetails[id] = detail;
+      keptDetails++;
+    }
+  }
+
   const notes = [];
+  if (keptDetails > 0) notes.push(`kept ${keptDetails} detail(s) already gathered`);
   if (duplicates > 0) notes.push(`${duplicates} duplicate row(s) skipped`);
   if (missingIds > 0) notes.push(`${missingIds} row(s) had no job id`);
   if (incomplete) notes.push(`incomplete: ${incomplete}`);
@@ -266,6 +283,7 @@ async function scrapeAllPagesInner(tabId) {
       `Found ${allJobs.length} jobs from ${page} page(s).` +
       (notes.length > 0 ? ` (${notes.join("; ")})` : ""),
     jobs: allJobs,
+    jobDetails,
     progress: { current: allJobs.length, total: allJobs.length, label: "Done" },
   });
 }
@@ -277,6 +295,30 @@ async function scrapeAllPagesInner(tabId) {
 function hasFields(detail) {
   if (!detail || detail._error) return false;
   return Object.keys(detail).some((k) => !k.startsWith("_"));
+}
+
+// What the web app already holds. Details survive in the database once synced,
+// so a run that lost its local copy — re-scraping the job list wipes it — has
+// no reason to spend hours gathering them again.
+async function fetchSyncedDetailIds() {
+  try {
+    const settings = await chrome.storage.local.get("buwSettings");
+    const webUrl = settings.buwSettings?.webUrl;
+    if (!webUrl) return new Set();
+
+    const headers = {};
+    const apiKey = settings.buwSettings?.apiKey;
+    if (apiKey) headers["x-api-key"] = apiKey;
+
+    const resp = await fetch(`${webUrl}/api/jobs/with-detail`, { headers });
+    if (!resp.ok) return new Set();
+
+    const result = await resp.json();
+    return new Set(result?.data?.jobIds || []);
+  } catch {
+    // The web app being down is not a reason to refuse to scrape.
+    return new Set();
+  }
 }
 
 // === Scrape details ===
@@ -303,11 +345,19 @@ async function scrapeDetailsInner(tabId) {
   }
 
   const jobDetails = state.jobDetails || {};
+  const alreadySynced = await fetchSyncedDetailIds();
   const knownJobs = state.jobs.slice();
   const titles = new Map(knownJobs.map((j) => [j.jobId, j.title]));
   let total = knownJobs.length;
 
-  await setState({ status: "scraping-details", stage: "details", statusText: "Starting detail scrape...", tabId });
+  await setState({
+    status: "scraping-details",
+    stage: "details",
+    statusText: alreadySynced.size > 0
+      ? `Starting — ${alreadySynced.size} already in the web app, skipping those`
+      : "Starting detail scrape...",
+    tabId,
+  });
 
   await toTab(tabId, "click-first");
 
@@ -389,7 +439,7 @@ async function scrapeDetailsInner(tabId) {
         await setState({ jobs: knownJobs });
       }
 
-      if (hasFields(jobDetails[row.jobId])) continue;
+      if (hasFields(jobDetails[row.jobId]) || alreadySynced.has(row.jobId)) continue;
 
       if (storageError) {
         return giveUp(`extension storage refused the write (${storageError}) — press Sync to Web, then Reset`);
