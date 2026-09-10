@@ -167,9 +167,20 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  await db.delete(jobs);
+  // Take a copy first. Two confirmations only guard against a stray click; they
+  // do nothing for a change of mind, and a term's postings represent hours of
+  // scraping that exist nowhere else once this row set is gone. One snapshot is
+  // kept, replaced by each clear, and restored with POST /api/jobs/restore.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`DROP TABLE IF EXISTS jobs_snapshot`);
+    await tx.execute(sql`CREATE TABLE jobs_snapshot AS TABLE jobs`);
+    await tx.delete(jobs);
+  });
 
-  return Response.json({ success: true, data: { deleted: actual } });
+  return Response.json({
+    success: true,
+    data: { deleted: actual, snapshot: "jobs_snapshot" },
+  });
 }
 
 function splitParam(value: string | null): string[] {
