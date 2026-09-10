@@ -302,23 +302,30 @@ function hasFields(detail) {
 // so a run that lost its local copy — re-scraping the job list wipes it — has
 // no reason to spend hours gathering them again.
 async function fetchSyncedDetailIds() {
-  try {
-    const settings = await chrome.storage.local.get("buwSettings");
-    const webUrl = settings.buwSettings?.webUrl;
-    if (!webUrl) return new Set();
+  const settings = await chrome.storage.local.get("buwSettings");
+  const webUrl = (settings.buwSettings?.webUrl || "").replace(/\/+$/, "");
+  if (!webUrl) {
+    return { ids: new Set(), note: "no web app URL set, so nothing can be skipped" };
+  }
 
+  try {
     const headers = {};
     const apiKey = settings.buwSettings?.apiKey;
     if (apiKey) headers["x-api-key"] = apiKey;
 
     const resp = await fetch(`${webUrl}/api/jobs/with-detail`, { headers });
-    if (!resp.ok) return new Set();
+    if (!resp.ok) {
+      return { ids: new Set(), note: `web app answered ${resp.status}, scraping everything` };
+    }
 
     const result = await resp.json();
-    return new Set(result?.data?.jobIds || []);
-  } catch {
-    // The web app being down is not a reason to refuse to scrape.
-    return new Set();
+    const ids = new Set(result?.data?.jobIds || []);
+    return { ids, note: null };
+  } catch (err) {
+    // Being unreachable is not a reason to refuse to scrape — but it does mean
+    // hours of avoidable work, so it has to be said out loud rather than
+    // quietly turning into a full re-scrape.
+    return { ids: new Set(), note: `web app unreachable (${err?.message || err}), scraping everything` };
   }
 }
 
@@ -346,7 +353,7 @@ async function scrapeDetailsInner(tabId) {
   }
 
   const jobDetails = state.jobDetails || {};
-  const alreadySynced = await fetchSyncedDetailIds();
+  const { ids: alreadySynced, note: skipNote } = await fetchSyncedDetailIds();
   const knownJobs = state.jobs.slice();
   const titles = new Map(knownJobs.map((j) => [j.jobId, j.title]));
   let total = knownJobs.length;
@@ -354,9 +361,9 @@ async function scrapeDetailsInner(tabId) {
   await setState({
     status: "scraping-details",
     stage: "details",
-    statusText: alreadySynced.size > 0
-      ? `Starting — ${alreadySynced.size} already in the web app, skipping those`
-      : "Starting detail scrape...",
+    statusText: skipNote
+      ? `Starting — ${skipNote}`
+      : `Starting — ${alreadySynced.size} already in the web app, skipping those`,
     tabId,
   });
 
