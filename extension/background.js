@@ -64,6 +64,11 @@ function sleep(ms) {
 // still claiming to be busy. Touching an extension API on a timer resets it.
 let keepAliveTimer = null;
 
+// Which loop, if any, is running in this worker. The worker can be recycled at
+// any time, taking the loop with it; the flag resets with it, which is exactly
+// right — after a restart there is no loop, and resume has to start one.
+let runningLoop = null;
+
 function startKeepAlive() {
   if (keepAliveTimer) return;
   keepAliveTimer = setInterval(() => {
@@ -112,16 +117,19 @@ async function waitWhilePaused() {
 
 // === Scrape all pages ===
 async function scrapeAllPages(tabId) {
+  if (runningLoop) return;
+  runningLoop = "list";
   startKeepAlive();
   try {
     await scrapeAllPagesInner(tabId);
   } finally {
+    runningLoop = null;
     stopKeepAlive();
   }
 }
 
 async function scrapeAllPagesInner(tabId) {
-  await setState({ status: "scraping-list", statusText: "Starting...", jobs: [], jobDetails: {}, tabId });
+  await setState({ status: "scraping-list", stage: "list", statusText: "Starting...", jobs: [], jobDetails: {}, tabId });
 
   const ready = await ensureContentScript(tabId);
   if (!ready.ok) {
@@ -226,10 +234,13 @@ function hasFields(detail) {
 
 // === Scrape details ===
 async function scrapeDetails(tabId) {
+  if (runningLoop) return;
+  runningLoop = "details";
   startKeepAlive();
   try {
     await scrapeDetailsInner(tabId);
   } finally {
+    runningLoop = null;
     stopKeepAlive();
   }
 }
@@ -248,7 +259,7 @@ async function scrapeDetailsInner(tabId) {
   const jobDetails = state.jobDetails || {};
   const titles = new Map(state.jobs.map((j) => [j.jobId, j.title]));
 
-  await setState({ status: "scraping-details", statusText: "Starting detail scrape...", tabId });
+  await setState({ status: "scraping-details", stage: "details", statusText: "Starting detail scrape...", tabId });
 
   await toTab(tabId, "click-first");
 
@@ -415,7 +426,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return false;
 
     case "start-scrape-details":
-      scrapeDetails(msg.tabId);
+      // Pressing this after a stall has to be able to take over a run whose
+      // worker is gone but whose stored status still says paused or running.
+      getState().then((s) => {
+        if (s.status === "paused") setState({ status: "scraping-details" });
+        scrapeDetails(msg.tabId);
+      });
       sendResponse({ ok: true });
       return false;
 
@@ -426,9 +442,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     case "resume":
       getState().then((s) => {
-        const detailCount = Object.keys(s.jobDetails || {}).length;
-        const newStatus = detailCount > 0 ? "scraping-details" : "scraping-list";
-        setState({ status: newStatus, statusText: "Resuming...", tabId: msg.tabId });
+        const stage = s.stage || (Object.keys(s.jobDetails || {}).length > 0 ? "details" : "list");
+        setState({
+          status: stage === "details" ? "scraping-details" : "scraping-list",
+          statusText: "Resuming...",
+          tabId: msg.tabId,
+        });
+        // Resume used to only flip the status and trust a paused loop to notice.
+        // If the worker had been recycled meanwhile there was no loop left to
+        // read it, and the run sat on "Resuming..." forever.
+        if (!runningLoop) {
+          if (stage === "details") scrapeDetails(msg.tabId);
+          else scrapeAllPages(msg.tabId);
+        }
         sendResponse({ ok: true });
       });
       return true;
