@@ -14,6 +14,31 @@
 
   console.log("[buw] Content script loaded on", window.location.href);
 
+  // WaterlooWorks ends a session after a fixed idle period, warning first with
+  // its "Keep Me Logged In" dialog. A detail run takes long enough to reach it,
+  // and nobody is watching to click it, so the site logged out around 700
+  // postings in and the rest of the run had nothing to read. Answer the dialog
+  // ourselves; it is the one modal the job viewer selector deliberately skips.
+  function keepSessionAlive() {
+    const modal = document.querySelector("#keepMeLoggedInModal");
+    if (!modal || modal.offsetParent === null) return false;
+
+    const button = Array.from(modal.querySelectorAll("button, a")).find((el) =>
+      /keep\s+me\s+(logged|signed)\s+in/i.test(el.textContent || "")
+    );
+    if (!button) return false;
+
+    activate(button);
+    console.log("[buw] dismissed the session timeout prompt");
+    return true;
+  }
+
+  function isLoggedOut() {
+    return /notLoggedIn|\/login/i.test(location.href);
+  }
+
+  setInterval(keepSessionAlive, 5000);
+
   function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
   }
@@ -438,6 +463,15 @@
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg?.source !== "buw-bg") return false;
+
+    // Every message is a chance to answer the timeout dialog, which otherwise
+    // sits over the page blocking the clicks the scrape depends on.
+    keepSessionAlive();
+
+    if (isLoggedOut() && msg.action !== "ping") {
+      sendResponse({ error: true, loggedOut: true, message: "Signed out of WaterlooWorks — sign in again, then press Scrape Details" });
+      return false;
+    }
 
     switch (msg.action) {
       case "ping":

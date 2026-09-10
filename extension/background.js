@@ -326,6 +326,7 @@ async function scrapeDetailsInner(tabId) {
         jobDetails[row.jobId] = { _error: clickResult.message };
         lastError = clickResult.message;
         await setState({ jobDetails });
+        if (clickResult.loggedOut) return giveUp(clickResult.message);
         if (clickResult.timedOut && ++frozenStreak >= FROZEN_LIMIT) return giveUp(lastError);
         continue;
       }
@@ -337,6 +338,7 @@ async function scrapeDetailsInner(tabId) {
         jobDetails[row.jobId] = { _error: detail?.message || "Failed" };
         lastError = detail?.message || "Failed";
         await setState({ jobDetails });
+        if (detail?.loggedOut) return giveUp(detail.message);
         if (detail?.timedOut && ++frozenStreak >= FROZEN_LIMIT) return giveUp(lastError);
         continue;
       }
