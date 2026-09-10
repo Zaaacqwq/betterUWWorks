@@ -189,6 +189,7 @@ async function scrapeAllPagesInner(tabId) {
     const lastCheck = await toTab(tabId, "is-last-page");
     if (lastCheck.isLast) break;
 
+    await setState({ statusText: `Turning to page ${page + 1}...` });
     const nextResult = await toTab(tabId, "click-next");
     if (!nextResult.ok) {
       incomplete = `stopped at page ${page} (${nextResult.message || "navigation failed"})`;
@@ -287,6 +288,19 @@ async function scrapeDetailsInner(tabId) {
       await setState({ status: "error", statusText: "Error: " + pageResult.message });
       return;
     }
+
+    // Resuming walks back over every page already covered, and rows that are
+    // done are skipped without a word. With no state written for a whole page
+    // the popup sat on the first page's count and its stall check, which reads
+    // the same heartbeat, called a working run dead.
+    const pending = pageResult.jobs.filter((j) => j.jobId && !hasFields(jobDetails[j.jobId]));
+    await setState({
+      statusText:
+        pending.length === 0
+          ? `Page ${page} — ${pageResult.jobs.length} already captured, moving on`
+          : `Page ${page} — ${pending.length} to fetch`,
+      progress: { current: seen, total, label: `Page ${page}` },
+    });
 
     for (const row of pageResult.jobs) {
       const inner = await getState();

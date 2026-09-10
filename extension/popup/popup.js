@@ -72,7 +72,9 @@
     // A reclaimed service worker leaves the status saying "scraping" forever.
     // Treat a run whose heartbeat has gone quiet as stalled so the controls
     // come back instead of the popup looking frozen.
-    const STALL_MS = 90000;
+    // Must clear the background's own 75s message deadline, or a single slow
+    // page turn reads as a dead run.
+    const STALL_MS = 150000;
     const stalled =
       (s.status === "scraping-list" || s.status === "scraping-details") &&
       s.lastTickAt > 0 &&
