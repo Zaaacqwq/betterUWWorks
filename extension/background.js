@@ -21,14 +21,34 @@ async function setState(patch) {
   chrome.runtime.sendMessage({ source: "buw-bg", action: "state-update", state }).catch(() => {});
 }
 
-function toTab(tabId, action, payload) {
+// Chrome freezes a background tab it considers idle, stopping its timers
+// outright. The content script's waits are timer-driven, so they neither
+// resolve nor reject, sendResponse is never called, and a message with no
+// deadline parks the whole run on an await that can never return — which is
+// what a scrape stopping partway with no errors recorded looked like.
+const TAB_REPLY_TIMEOUT = 75000;
+
+function toTab(tabId, action, payload, timeout = TAB_REPLY_TIMEOUT) {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+
+    const timer = setTimeout(
+      () => finish({ error: true, timedOut: true, message: `page did not answer "${action}" in ${Math.round(timeout / 1000)}s (tab may be frozen — keep it the active tab)` }),
+      timeout
+    );
+
     chrome.tabs.sendMessage(tabId, { source: "buw-bg", action, payload }, (resp) => {
       if (chrome.runtime.lastError) {
-        resolve({ error: true, message: chrome.runtime.lastError.message });
+        finish({ error: true, message: chrome.runtime.lastError.message });
         return;
       }
-      resolve(resp || { error: true, message: "No response" });
+      finish(resp || { error: true, message: "No response" });
     });
   });
 }
@@ -237,6 +257,20 @@ async function scrapeDetailsInner(tabId) {
   let page = 0;
   let lastError = null;
 
+  // Once the page has stopped answering there is nothing to be gained by
+  // walking the rest of the list; stop and say so, since the run resumes from
+  // wherever it got to.
+  const FROZEN_LIMIT = 2;
+  let frozenStreak = 0;
+
+  const giveUp = async (why) =>
+    setState({
+      status: "error",
+      statusText: `Stopped after ${successCount}/${total}: ${why}`,
+      jobDetails,
+      progress: { current: seen, total, label: "Stopped" },
+    });
+
   while (true) {
     const cs = await getState();
     if (cs.status === "idle") return;
@@ -278,8 +312,10 @@ async function scrapeDetailsInner(tabId) {
         jobDetails[row.jobId] = { _error: clickResult.message };
         lastError = clickResult.message;
         await setState({ jobDetails });
+        if (clickResult.timedOut && ++frozenStreak >= FROZEN_LIMIT) return giveUp(lastError);
         continue;
       }
+      frozenStreak = 0;
 
       // No fixed delay: scrape-detail waits for the viewer to show this id.
       const detail = await toTab(tabId, "scrape-detail", { jobId: row.jobId });
@@ -287,8 +323,10 @@ async function scrapeDetailsInner(tabId) {
         jobDetails[row.jobId] = { _error: detail?.message || "Failed" };
         lastError = detail?.message || "Failed";
         await setState({ jobDetails });
+        if (detail?.timedOut && ++frozenStreak >= FROZEN_LIMIT) return giveUp(lastError);
         continue;
       }
+      frozenStreak = 0;
 
       jobDetails[row.jobId] = detail.detail;
 
