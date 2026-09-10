@@ -183,7 +183,7 @@ async function scrapeAllPagesInner(tabId) {
   // taken down are pruned once the new list is known.
   const carriedDetails = (await getState()).jobDetails || {};
 
-  await setState({ status: "scraping-list", stage: "list", statusText: "Starting...", jobs: [], tabId });
+  await setState({ status: "scraping-list", stage: "list", statusText: "Starting...", jobs: [], capturedCount: null, tabId });
 
   const ready = await ensureContentScript(tabId);
   if (!ready.ok) {
@@ -524,7 +524,7 @@ async function scrapeDetailsInner(tabId) {
 
       captured.add(row.jobId);
       successCount = captured.size;
-      await setState({ jobDetails });
+      await setState({ jobDetails, capturedCount: successCount });
     }
 
     if (rescanPage) {
@@ -566,16 +566,20 @@ async function scrapeDetailsInner(tabId) {
     ).length;
   }
 
-  const failed = total - successCount;
+  const shortfall = total - successCount;
 
   await setState({
-    status: failed > 0 ? "error" : "done",
+    // A posting with nothing to scrape is not a failure. Only an actual error
+    // should colour the run red, or every finished run ends looking broken.
+    status: lastError ? "error" : "done",
     statusText:
       `Done! ${successCount}/${total} details scraped.` +
+      (shortfall > 0 ? ` ${shortfall} had none to fetch.` : "") +
       (dropped > 0 ? ` (${dropped} for postings no longer listed were dropped)` : "") +
       (lastError ? ` Last error: ${lastError}` : ""),
     jobDetails,
-    progress: { current: total, total, label: "Complete" },
+    capturedCount: successCount,
+    progress: { current: successCount, total, label: "Complete" },
   });
 }
 

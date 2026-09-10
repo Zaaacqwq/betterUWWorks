@@ -63,8 +63,13 @@
     // Mirrors the background's rule: a detail with no fields is not a success,
     // however cleanly it was fetched.
     const hasFields = (d) => d && !d._error && Object.keys(d).some((k) => !k.startsWith("_"));
-    const successCount = detailKeys.filter((k) => hasFields(details[k])).length;
-    const errorCount = detailKeys.length - successCount;
+    const localCount = detailKeys.filter((k) => hasFields(details[k])).length;
+
+    // A detail synced to the web app is still a detail. Only the background
+    // knows how many of those there are, so prefer its figure — counting the
+    // local copy alone showed 73 of 2170 for a run that was missing 7.
+    const successCount = typeof s.capturedCount === "number" ? s.capturedCount : localCount;
+    const errorCount = detailKeys.filter((k) => details[k]?._error).length;
     statJobs.textContent = jobCount;
     statDetails.textContent = successCount;
     statErrors.textContent = errorCount;
