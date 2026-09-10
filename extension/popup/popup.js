@@ -69,7 +69,16 @@
     statDetails.textContent = successCount;
     statErrors.textContent = errorCount;
 
-    const isBusy = s.status === "scraping-list" || s.status === "scraping-details" || s.status === "paused";
+    // A reclaimed service worker leaves the status saying "scraping" forever.
+    // Treat a run whose heartbeat has gone quiet as stalled so the controls
+    // come back instead of the popup looking frozen.
+    const STALL_MS = 90000;
+    const stalled =
+      (s.status === "scraping-list" || s.status === "scraping-details") &&
+      s.lastTickAt > 0 &&
+      Date.now() - s.lastTickAt > STALL_MS;
+
+    const isBusy = !stalled && (s.status === "scraping-list" || s.status === "scraping-details" || s.status === "paused");
     if (isBusy && s.progress?.total > 0) {
       progressSection.classList.add("visible");
       const pct = Math.round((s.progress.current / s.progress.total) * 100);
@@ -105,8 +114,15 @@
       setStep(0, false, false);
     }
 
-    const scraping = s.status === "scraping-list" || s.status === "scraping-details";
+    const scraping = !stalled && (s.status === "scraping-list" || s.status === "scraping-details");
     const paused = s.status === "paused";
+
+    if (stalled) {
+      const mins = Math.round((Date.now() - s.lastTickAt) / 60000);
+      statusText.textContent =
+        `Stopped responding ${mins} minute(s) ago — press Scrape Details to pick up where it left off.`;
+      statusDot.className = "status-dot error";
+    }
 
     btnScrapeAll.disabled = scraping || paused;
     btnScrapeDetails.disabled = scraping || paused || jobCount === 0;

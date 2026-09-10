@@ -15,6 +15,8 @@ async function getState() {
 async function setState(patch) {
   const state = await getState();
   Object.assign(state, patch);
+  // Lets the popup tell a running scrape from one whose worker was reclaimed.
+  state.lastTickAt = Date.now();
   await chrome.storage.local.set({ buwState: state });
   chrome.runtime.sendMessage({ source: "buw-bg", action: "state-update", state }).catch(() => {});
 }
@@ -33,6 +35,26 @@ function toTab(tabId, action, payload) {
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+// Chrome reclaims an idle MV3 service worker after 30 seconds. A scrape spends
+// most of its time awaiting one message, and a backgrounded tab has its timers
+// throttled hard — a 20s wait was measured taking 60s — so the gap between
+// extension calls can pass that mark and the run dies mid-loop with the UI
+// still claiming to be busy. Touching an extension API on a timer resets it.
+let keepAliveTimer = null;
+
+function startKeepAlive() {
+  if (keepAliveTimer) return;
+  keepAliveTimer = setInterval(() => {
+    chrome.runtime.getPlatformInfo().catch(() => {});
+  }, 20000);
+}
+
+function stopKeepAlive() {
+  if (!keepAliveTimer) return;
+  clearInterval(keepAliveTimer);
+  keepAliveTimer = null;
 }
 
 // Reloading the extension tears down the content script in tabs that are
@@ -70,6 +92,15 @@ async function waitWhilePaused() {
 
 // === Scrape all pages ===
 async function scrapeAllPages(tabId) {
+  startKeepAlive();
+  try {
+    await scrapeAllPagesInner(tabId);
+  } finally {
+    stopKeepAlive();
+  }
+}
+
+async function scrapeAllPagesInner(tabId) {
   await setState({ status: "scraping-list", statusText: "Starting...", jobs: [], jobDetails: {}, tabId });
 
   const ready = await ensureContentScript(tabId);
@@ -175,6 +206,15 @@ function hasFields(detail) {
 
 // === Scrape details ===
 async function scrapeDetails(tabId) {
+  startKeepAlive();
+  try {
+    await scrapeDetailsInner(tabId);
+  } finally {
+    stopKeepAlive();
+  }
+}
+
+async function scrapeDetailsInner(tabId) {
   const state = await getState();
   const total = state.jobs.length;
   if (total === 0) return;
