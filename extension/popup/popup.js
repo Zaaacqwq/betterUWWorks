@@ -83,7 +83,10 @@
     const isBusy = !stalled && (s.status === "scraping-list" || s.status === "scraping-details" || s.status === "paused");
     if (isBusy && s.progress?.total > 0) {
       progressSection.classList.add("visible");
-      const pct = Math.round((s.progress.current / s.progress.total) * 100);
+      // Floor, not round: 2107 of 2113 rounds to 100% and claims a run is
+      // finished while six postings still have nothing.
+      const ratio = s.progress.current / s.progress.total;
+      const pct = ratio >= 1 ? 100 : Math.min(99, Math.floor(ratio * 100));
       progressPct.textContent = pct + "%";
       progressFill.style.width = pct + "%";
       progressFill.className = "progress-fill" + (s.status === "paused" ? " paused" : "");

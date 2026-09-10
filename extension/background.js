@@ -294,7 +294,6 @@ async function scrapeDetails(tabId) {
 
 async function scrapeDetailsInner(tabId) {
   const state = await getState();
-  const total = state.jobs.length;
   if (total === 0) return;
 
   const ready = await ensureContentScript(tabId);
@@ -304,7 +303,9 @@ async function scrapeDetailsInner(tabId) {
   }
 
   const jobDetails = state.jobDetails || {};
-  const titles = new Map(state.jobs.map((j) => [j.jobId, j.title]));
+  const knownJobs = state.jobs.slice();
+  const titles = new Map(knownJobs.map((j) => [j.jobId, j.title]));
+  let total = knownJobs.length;
 
   await setState({ status: "scraping-details", stage: "details", statusText: "Starting detail scrape...", tabId });
 
@@ -374,6 +375,19 @@ async function scrapeDetailsInner(tabId) {
       }
 
       if (!row.jobId) continue;
+
+      // The list on screen is live: postings added since the list was scraped
+      // show up here. Fold them in rather than fetching a detail that has no
+      // job to belong to — the sync payload is built from this list, so those
+      // were being thrown away, and they made the tally read more details than
+      // jobs.
+      if (!titles.has(row.jobId)) {
+        knownJobs.push(row);
+        titles.set(row.jobId, row.title);
+        total = knownJobs.length;
+        await setState({ jobs: knownJobs });
+      }
+
       if (hasFields(jobDetails[row.jobId])) continue;
 
       if (storageError) {
