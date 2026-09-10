@@ -338,10 +338,11 @@
     const modal = document.querySelector(JOB_MODAL_SEL);
     if (!modal) return { error: true, message: "No job detail modal found." };
 
+    // Only the flat keys are kept. _sections repeated every key and value a
+    // second time under its heading, and its _content is read by nothing —
+    // dead weight that doubled what the run had to hold in extension storage.
     const detail = {};
     const panels = modal.querySelectorAll("[id^='panel_']");
-    let currentSection = "general";
-    detail._sections = {};
 
     for (const panel of panels) {
       const lines = panel.innerText.trim().split("\n").map((l) => l.trim());
@@ -351,8 +352,6 @@
         if (!line) { i++; continue; }
 
         if (SECTION_HEADINGS.has(line.toUpperCase())) {
-          currentSection = line;
-          if (!detail._sections[currentSection]) detail._sections[currentSection] = {};
           i++; continue;
         }
 
@@ -368,25 +367,9 @@
             valLines.push(nl); i++;
           }
           const value = valLines.join("\n").trim();
-          if (key) {
-            detail[key] = value;
-            if (typeof detail._sections[currentSection] === "object")
-              detail._sections[currentSection][key] = value;
-          }
+          if (key) detail[key] = value;
         } else {
-          const contentLines = [line]; i++;
-          while (i < lines.length) {
-            const nl = lines[i];
-            if (!nl) { i++; continue; }
-            if (SECTION_HEADINGS.has(nl.toUpperCase())) break;
-            if (nl.endsWith(":") && nl.length < 80) break;
-            contentLines.push(nl); i++;
-          }
-          const content = contentLines.join("\n").trim();
-          if (content && typeof detail._sections[currentSection] === "object") {
-            detail._sections[currentSection]._content =
-              (detail._sections[currentSection]._content || "") + "\n" + content;
-          }
+          i++;
         }
       }
     }

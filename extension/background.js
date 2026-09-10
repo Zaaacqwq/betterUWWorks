@@ -12,12 +12,27 @@ async function getState() {
   return result.buwState || { ...DEFAULT_STATE };
 }
 
+// Set when a write is refused — extension storage has a quota, and every write
+// carries the whole detail set. Once it filled, every setState threw, so the
+// run died where it stood and could not even record why: writing the error was
+// itself a write. Never let that failure be silent again.
+let storageError = null;
+
 async function setState(patch) {
   const state = await getState();
   Object.assign(state, patch);
   // Lets the popup tell a running scrape from one whose worker was reclaimed.
   state.lastTickAt = Date.now();
-  await chrome.storage.local.set({ buwState: state });
+
+  try {
+    await chrome.storage.local.set({ buwState: state });
+    storageError = null;
+  } catch (err) {
+    storageError = err?.message || String(err);
+    console.error("[buw] could not save state:", storageError);
+    return;
+  }
+
   chrome.runtime.sendMessage({ source: "buw-bg", action: "state-update", state }).catch(() => {});
 }
 
@@ -360,6 +375,10 @@ async function scrapeDetailsInner(tabId) {
 
       if (!row.jobId) continue;
       if (hasFields(jobDetails[row.jobId])) continue;
+
+      if (storageError) {
+        return giveUp(`extension storage refused the write (${storageError}) — press Sync to Web, then Reset`);
+      }
 
       // Progress counts postings captured, not rows walked past. Walking the
       // list again after signing back in revisits everything already done, and
