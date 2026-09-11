@@ -1,6 +1,8 @@
-import type { ResumeProfile, UserInfo, MatchScore, MatchDebug, QualificationWarning } from "./types";
-import { extractSkillsFromText, computeSkillOverlap } from "./skill-utils";
+import type { ResumeProfile, UserInfo, MatchScore, MatchDebug, SkillSource } from "./types";
+import type { PostingDetails } from "@/lib/job-details/types";
+import { computeSkillOverlap } from "./skill-utils";
 import { buildCapabilityMap, computeWeightedOverlap, extraSkillsToCapabilities } from "./capability-utils";
+import { programFit, requirementWarnings } from "./requirement-checks";
 
 export interface JobForMatch {
   level: string | null;
@@ -8,6 +10,8 @@ export interface JobForMatch {
   jobSummary: string | null;
   specialRequirements: string | null;
   aiSkills: string[] | null;
+  // Pay and requirements read out of the posting; null until they have been.
+  aiDetails?: PostingDetails | null;
   hiresByWorkTermNumber: Record<string, number> | null;
 }
 
@@ -19,8 +23,8 @@ export function computeMatchScore(
 ): MatchScore {
   const skillsResult = scoreSkills(profile, job, extraSkills);
   const levelResult = scoreLevel(profile, userInfo, job);
-  const programResult = scoreProgram(userInfo, job);
-  const warnings = extractWarnings(userInfo, job);
+  const programResult = programFit(userInfo, job.aiDetails);
+  const warnings = requirementWarnings(userInfo, job.aiDetails);
 
   const debug: MatchDebug = {
     skills: skillsResult.debug,
@@ -47,7 +51,7 @@ function scoreSkills(profile: ResumeProfile, job: JobForMatch, extraSkills?: str
     return {
       score: 0,
       debug: {
-        source: source as "ai" | "regex",
+        source,
         jobSkills: [] as string[],
         matched: [] as MatchDebug["skills"]["matched"],
         missing: [] as string[],
@@ -99,13 +103,13 @@ function scoreSkills(profile: ResumeProfile, job: JobForMatch, extraSkills?: str
   };
 }
 
-function resolveJobSkills(job: JobForMatch): { skills: string[]; source: "ai" | "regex" } {
-  if (job.aiSkills && job.aiSkills.length > 0) {
-    return { skills: job.aiSkills, source: "ai" };
-  }
-  const text = [job.requiredSkills, job.jobSummary].filter(Boolean).join(" ");
-  if (!text) return { skills: [], source: "regex" };
-  return { skills: extractSkillsFromText(text), source: "regex" };
+// A posting's skills come only from the model's extraction, checked against
+// the posting before being stored. There is deliberately no keyword fallback
+// while that is pending: a word list both misses anything it has never heard of
+// and finds skills that are not there ("the next generation" read as Next.js).
+function resolveJobSkills(job: JobForMatch): { skills: string[]; source: SkillSource } {
+  if (job.aiSkills == null) return { skills: [], source: "pending" };
+  return { skills: job.aiSkills, source: "ai" };
 }
 
 const TERM_KEYS = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth +"] as const;
@@ -161,97 +165,6 @@ function scoreLevel(profile: ResumeProfile, userInfo: UserInfo | null, job: JobF
   };
 }
 
-function scoreProgram(userInfo: UserInfo | null, job: JobForMatch) {
-  if (!userInfo?.program) {
-    return {
-      score: 8,
-      debug: { userProgram: "", jobMentionsProgram: false, matched: false },
-    };
-  }
-
-  const reqText = job.specialRequirements?.toLowerCase() ?? "";
-  const mentions = mentionsProgram(reqText);
-
-  if (!mentions) {
-    return {
-      score: 15,
-      debug: { userProgram: userInfo.program, jobMentionsProgram: false, matched: false },
-    };
-  }
-
-  const userProg = userInfo.program.toLowerCase();
-  if (reqText.includes(userProg)) {
-    return {
-      score: 15,
-      debug: { userProgram: userInfo.program, jobMentionsProgram: true, matched: true },
-    };
-  }
-
-  for (const alias of getProgramAliases(userProg)) {
-    if (reqText.includes(alias)) {
-      return {
-        score: 15,
-        debug: { userProgram: userInfo.program, jobMentionsProgram: true, matched: true },
-      };
-    }
-  }
-
-  return {
-    score: 3,
-    debug: { userProgram: userInfo.program, jobMentionsProgram: true, matched: false },
-  };
-}
-
-function extractWarnings(
-  userInfo: UserInfo | null,
-  job: JobForMatch
-): QualificationWarning[] {
-  if (!userInfo) return [];
-
-  const warnings: QualificationWarning[] = [];
-  const req = job.specialRequirements?.toLowerCase() ?? "";
-  if (!req) return warnings;
-
-  if (userInfo.gpa != null) {
-    const gpaMatch = req.match(/(?:gpa|grade point average)\s*(?:of\s*)?(\d+\.?\d*)/i);
-    if (gpaMatch) {
-      const requiredGpa = parseFloat(gpaMatch[1]);
-      if (userInfo.gpa < requiredGpa) {
-        warnings.push({
-          type: "gpa",
-          message: `Requires GPA ${requiredGpa}+, yours is ${userInfo.gpa}`,
-        });
-      }
-    }
-  }
-
-  const termMatch = req.match(/(\d+)(?:st|nd|rd|th)\s*(?:co-?op|work\s*term)/i);
-  if (termMatch) {
-    const requiredTerm = parseInt(termMatch[1], 10);
-    if (userInfo.coopTermNumber < requiredTerm) {
-      warnings.push({
-        type: "coop_term",
-        message: `Requires co-op term ${requiredTerm}+, you are on term ${userInfo.coopTermNumber}`,
-      });
-    }
-  }
-
-  if (userInfo.yearLevel != null) {
-    const yearMatch = req.match(/(\d+)[AB]?\s*(?:or higher|and above|\+)/i);
-    if (yearMatch) {
-      const requiredYear = parseInt(yearMatch[1], 10);
-      if (userInfo.yearLevel < requiredYear) {
-        warnings.push({
-          type: "year_level",
-          message: `Prefers year ${requiredYear}+, you are in year ${userInfo.yearLevel}`,
-        });
-      }
-    }
-  }
-
-  return warnings;
-}
-
 function levelToTier(level: string): number {
   const lower = level.toLowerCase();
   if (lower.includes("senior")) return 3;
@@ -268,39 +181,4 @@ function coopNumberToTier(coopNum: number): number {
 const TIER_LABELS = ["", "Junior", "Intermediate", "Senior"] as const;
 export function tierLabel(tier: number): string {
   return TIER_LABELS[tier] ?? "Unknown";
-}
-
-function mentionsProgram(text: string): boolean {
-  const keywords = [
-    "computer science", "engineering", "mathematics", "math",
-    "business", "science", "arts", "accounting", "finance",
-    "statistics", "physics", "chemistry", "biology", "economics",
-    "program", "degree", "discipline", "faculty", "enrolled in",
-  ];
-  return keywords.some((k) => text.includes(k));
-}
-
-const PROGRAM_ALIASES: Record<string, string[]> = {
-  "computer science": ["cs", "comp sci", "computing"],
-  "computer engineering": ["ce", "comp eng"],
-  "software engineering": ["se", "swe"],
-  "electrical engineering": ["ee", "ece"],
-  "mechanical engineering": ["me", "mech eng"],
-  "systems design engineering": ["syde"],
-  "management engineering": ["msci"],
-  "mathematics": ["math", "applied math"],
-  "statistics": ["stats", "stat"],
-  "data science": ["data sci"],
-  "business administration": ["bba", "business"],
-  "accounting and financial management": ["afm"],
-  "information technology management": ["itm"],
-};
-
-function getProgramAliases(program: string): string[] {
-  for (const [canonical, aliases] of Object.entries(PROGRAM_ALIASES)) {
-    if (program.includes(canonical) || aliases.some((a) => program.includes(a))) {
-      return [canonical, ...aliases];
-    }
-  }
-  return [];
 }

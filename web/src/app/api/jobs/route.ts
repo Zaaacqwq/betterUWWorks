@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { jobs } from "@/db/schema";
-import { sql, ilike, and, SQL, desc, asc, gte, eq, inArray, or } from "drizzle-orm";
+import { sql, ilike, and, SQL, desc, asc, gte, inArray, or } from "drizzle-orm";
+import { REQUIREMENT_KINDS, type RequirementKind } from "@/lib/job-details/types";
 
 // The job list page fetches every row in one request so it can score and sort
 // against the resume client-side, so this cap has to clear a full term's
@@ -20,6 +21,11 @@ export async function GET(request: NextRequest) {
   const jobTypes = splitParam(params.get("jobType"));
   const minPay = parseFloat(params.get("minPay") || "");
   const minRating = parseFloat(params.get("minRating") || "");
+  // Requirement kinds whose postings to leave out, e.g. "citizenship" to hide
+  // postings that require it. Only what a posting requires, not what it prefers.
+  const hiddenRequirements = splitParam(params.get("hideRequirement")).filter((k): k is RequirementKind =>
+    (REQUIREMENT_KINDS as readonly string[]).includes(k)
+  );
   const sort = params.get("sort") || "deadline";
   const order = params.get("order") === "asc" ? "asc" : "desc";
   const page = Math.max(1, parseInt(params.get("page") || "1", 10));
@@ -70,6 +76,11 @@ export async function GET(request: NextRequest) {
   if (!isNaN(minRating) && minRating > 0) {
     conditions.push(gte(jobs.employerRating, minRating));
   }
+  for (const kind of hiddenRequirements) {
+    // Containment on the whole document, which the GIN index on ai_details serves.
+    const required = JSON.stringify({ requirements: [{ kind, required: true }] });
+    conditions.push(sql`not coalesce(${jobs.aiDetails} @> ${required}::jsonb, false)`);
+  }
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -118,6 +129,7 @@ export async function GET(request: NextRequest) {
         requiredSkills: jobs.requiredSkills,
         specialRequirements: jobs.specialRequirements,
         aiSkills: jobs.aiSkills,
+        aiDetails: jobs.aiDetails,
         hiresByWorkTermNumber: sql<Record<string, number> | null>`${jobs.workTermRatings}->'hiresByWorkTermNumber'`,
       })
       .from(jobs)

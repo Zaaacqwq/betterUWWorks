@@ -11,7 +11,12 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "lint:extension": "cd ../extension && eslint --no-config-lookup -c eslint.config.mjs ."
+    "lint:extension": "cd ../extension && eslint --no-config-lookup -c eslint.config.mjs .",
+    "test": "vitest run",
+    "db:backup": "scripts/db-backup.sh",
+    "db:restore": "scripts/db-restore.sh",
+    "skills:extract": "node scripts/extract.mjs skills",
+    "details:extract": "node scripts/extract.mjs details"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.48",
@@ -36,6 +41,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

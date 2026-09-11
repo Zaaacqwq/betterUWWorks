@@ -21,3 +21,6 @@ diag-*.js
 
 # docker data
 pgdata/
+
+# local database dumps (npm run db:backup) — scraped postings, not for the repo
+backups/

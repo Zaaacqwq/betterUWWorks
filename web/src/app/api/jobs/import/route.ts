@@ -1,9 +1,30 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { db } from "@/db";
 import { jobs } from "@/db/schema";
 import { importPayloadSchema } from "@/lib/import-schema";
-import { extractDetailFields } from "@/lib/extract-detail";
-import { sql } from "drizzle-orm";
+import { extractDetailFields, hasDetailFields } from "@/lib/extract-detail";
+import { extractRatingsData } from "@/lib/extract-ratings";
+import { runPending } from "@/lib/extraction/runner";
+import { skillExtractor } from "@/lib/job-skills/run";
+import { detailExtractor } from "@/lib/job-details/run";
+import { sql, type SQL } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
+
+// A row synced without its detail — the extension skips gathering details the
+// database already holds, then syncs the posting back without one, or sends
+// the error stub of a posting it failed to open — keeps the detail it has, and
+// everything read from it. Taking the empty detail used to
+// wipe the posting's text and every extraction along with it.
+const fromDetail = (column: AnyPgColumn) =>
+  sql`case when excluded.raw_detail is null then ${column} else ${sql.raw(`excluded.${column.name}`)} end`;
+
+// What each extraction reads: skills the title and the scraped detail
+// (lib/job-skills/source.ts), pay and requirements those and the location
+// (lib/job-details/source.ts). Only a change to what it read makes a result stale.
+const DETAIL_CHANGED = sql`(excluded.raw_detail is not null and ${jobs.rawDetail} is distinct from excluded.raw_detail)`;
+const SKILL_SOURCE_CHANGED = sql`(${DETAIL_CHANGED} or ${jobs.title} is distinct from excluded.title)`;
+const DETAIL_SOURCE_CHANGED = sql`(${SKILL_SOURCE_CHANGED} or ${jobs.location} is distinct from excluded.location)`;
+const staleUnless = (changed: SQL, column: AnyPgColumn) => sql`case when ${changed} then null else ${column} end`;
 
 export async function POST(request: NextRequest) {
   const apiKey = request.headers.get("x-api-key");
@@ -49,9 +70,14 @@ export async function POST(request: NextRequest) {
   // and reported a total well short of the batch.
   await db.transaction(async (tx) => {
     for (const item of jobItems) {
-      const detail = extractDetailFields(item.detail);
-      const rawDetail = item.detail as Record<string, unknown> | undefined;
+      // An error stub or an empty read counts as no detail, so it can't
+      // replace one the database already holds (see fromDetail).
+      const rawDetail = hasDetailFields(item.detail) ? item.detail : null;
+      const detail = extractDetailFields(rawDetail);
       const workTermRatings = rawDetail?._workTermRatings ?? null;
+      // Read from WaterlooWorks' own charts, so exact — worked out here rather
+      // than left to a reprocess nothing was calling.
+      const ratings = extractRatingsData(workTermRatings);
 
       const deadlineAt = item.deadline ? parseDeadline(item.deadline) : null;
 
@@ -69,8 +95,9 @@ export async function POST(request: NextRequest) {
           deadline: item.deadline || null,
           deadlineAt,
           ...detail,
-          rawDetail: item.detail ?? null,
+          rawDetail,
           workTermRatings,
+          ...ratings,
           batchId: batchId ?? null,
           importedAt: now,
           updatedAt: now,
@@ -86,22 +113,35 @@ export async function POST(request: NextRequest) {
             level: sql`excluded.level`,
             deadline: sql`excluded.deadline`,
             deadlineAt: sql`excluded.deadline_at`,
-            workTerm: sql`excluded.work_term`,
-            jobType: sql`excluded.job_type`,
-            region: sql`excluded.region`,
-            address: sql`excluded.address`,
-            locationArrangement: sql`excluded.location_arrangement`,
-            workTermDuration: sql`excluded.work_term_duration`,
-            specialRequirements: sql`excluded.special_requirements`,
-            jobSummary: sql`excluded.job_summary`,
-            jobResponsibilities: sql`excluded.job_responsibilities`,
-            requiredSkills: sql`excluded.required_skills`,
-            compensation: sql`excluded.compensation`,
-            applicationDelivery: sql`excluded.application_delivery`,
-            applicationInfo: sql`excluded.application_info`,
-            serviceTeam: sql`excluded.service_team`,
-            rawDetail: sql`excluded.raw_detail`,
-            workTermRatings: sql`excluded.work_term_ratings`,
+            workTerm: fromDetail(jobs.workTerm),
+            jobType: fromDetail(jobs.jobType),
+            region: fromDetail(jobs.region),
+            address: fromDetail(jobs.address),
+            locationArrangement: fromDetail(jobs.locationArrangement),
+            workTermDuration: fromDetail(jobs.workTermDuration),
+            specialRequirements: fromDetail(jobs.specialRequirements),
+            jobSummary: fromDetail(jobs.jobSummary),
+            jobResponsibilities: fromDetail(jobs.jobResponsibilities),
+            requiredSkills: fromDetail(jobs.requiredSkills),
+            compensation: fromDetail(jobs.compensation),
+            applicationDelivery: fromDetail(jobs.applicationDelivery),
+            applicationInfo: fromDetail(jobs.applicationInfo),
+            serviceTeam: fromDetail(jobs.serviceTeam),
+            rawDetail: fromDetail(jobs.rawDetail),
+            // What was read from the old text no longer describes the posting.
+            aiSkills: staleUnless(SKILL_SOURCE_CHANGED, jobs.aiSkills),
+            aiSkillsAt: staleUnless(SKILL_SOURCE_CHANGED, jobs.aiSkillsAt),
+            aiDetails: staleUnless(DETAIL_SOURCE_CHANGED, jobs.aiDetails),
+            aiDetailsAt: staleUnless(DETAIL_SOURCE_CHANGED, jobs.aiDetailsAt),
+            parsedHourlyMin: staleUnless(DETAIL_SOURCE_CHANGED, jobs.parsedHourlyMin),
+            parsedHourlyMax: staleUnless(DETAIL_SOURCE_CHANGED, jobs.parsedHourlyMax),
+            // The summary is written once and shared, so it has to go too.
+            aiSummary: staleUnless(DETAIL_SOURCE_CHANGED, jobs.aiSummary),
+            aiSummaryAt: staleUnless(DETAIL_SOURCE_CHANGED, jobs.aiSummaryAt),
+            workTermRatings: fromDetail(jobs.workTermRatings),
+            employerRating: fromDetail(jobs.employerRating),
+            employerRatingCount: fromDetail(jobs.employerRatingCount),
+            totalHires: fromDetail(jobs.totalHires),
             batchId: sql`excluded.batch_id`,
             updatedAt: now,
           },
@@ -110,6 +150,16 @@ export async function POST(request: NextRequest) {
       upserted++;
     }
   });
+
+  // New and changed postings are read without anyone having to ask, after the
+  // response so a sync is not held up by the model.
+  const importedIds = jobItems.map((item) => item.jobId);
+  after(() =>
+    Promise.all([
+      runPending(skillExtractor, importedIds.length, { jobIds: importedIds }),
+      runPending(detailExtractor, importedIds.length, { jobIds: importedIds }),
+    ])
+  );
 
   return Response.json({
     success: true,

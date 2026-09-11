@@ -36,6 +36,17 @@ const FIELD_MAP: Record<string, keyof ExtractedFields> = {
   "service team": "serviceTeam",
 };
 
+// Whether a synced detail really carries the posting, the same test as
+// hasFields() in extension/background.js. The extension stores { _error } for
+// a posting it failed to open, and a viewer read before its panels loaded
+// holds nothing but underscore keys; neither should replace a good detail.
+export function hasDetailFields(raw: unknown): raw is Record<string, unknown> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const detail = raw as Record<string, unknown>;
+  if (detail._error) return false;
+  return Object.keys(detail).some((k) => !k.startsWith("_"));
+}
+
 export function extractDetailFields(raw: unknown): ExtractedFields {
   const result: ExtractedFields = {
     workTerm: null,

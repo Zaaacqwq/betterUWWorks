@@ -9,6 +9,7 @@ import {
   real,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import type { PostingDetails } from "../lib/job-details/types";
 
 export const jobs = pgTable(
   "jobs",
@@ -55,6 +56,9 @@ export const jobs = pgTable(
     aiSummaryAt: timestamp("ai_summary_at", { withTimezone: true }),
     aiSkills: jsonb("ai_skills").$type<string[]>(),
     aiSkillsAt: timestamp("ai_skills_at", { withTimezone: true }),
+    // Added by drizzle/0002_ai_details.sql.
+    aiDetails: jsonb("ai_details").$type<PostingDetails>(),
+    aiDetailsAt: timestamp("ai_details_at", { withTimezone: true }),
 
     importedAt: timestamp("imported_at", { withTimezone: true })
       .notNull()

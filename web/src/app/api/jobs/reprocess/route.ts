@@ -1,17 +1,18 @@
 import { db } from "@/db";
 import { jobs } from "@/db/schema";
 import { extractDetailFields } from "@/lib/extract-detail";
-import { parseCompensation } from "@/lib/parse-compensation";
 import { extractRatingsData } from "@/lib/extract-ratings";
 import { eq } from "drizzle-orm";
 
+// Re-derives every field that is read straight out of the scraped detail, for
+// when that reading changes. Pay is not among them: it is extracted by the
+// model and checked against the posting (lib/job-details), because the old
+// pattern matching both missed common formats and got some badly wrong.
 export async function POST() {
   const allJobs = await db
     .select({
       id: jobs.id,
       rawDetail: jobs.rawDetail,
-      compensation: jobs.compensation,
-      location: jobs.location,
       workTermRatings: jobs.workTermRatings,
     })
     .from(jobs);
@@ -22,9 +23,6 @@ export async function POST() {
     const fields = extractDetailFields(job.rawDetail);
     const raw = job.rawDetail as Record<string, unknown> | null;
     const workTermRatings = raw?._workTermRatings ?? job.workTermRatings ?? null;
-
-    const comp = fields.compensation || job.compensation;
-    const pay = parseCompensation(comp, job.location);
     const ratings = extractRatingsData(workTermRatings);
 
     await db
@@ -32,11 +30,7 @@ export async function POST() {
       .set({
         ...fields,
         workTermRatings,
-        parsedHourlyMin: pay.hourlyMin,
-        parsedHourlyMax: pay.hourlyMax,
-        employerRating: ratings.employerRating,
-        employerRatingCount: ratings.employerRatingCount,
-        totalHires: ratings.totalHires,
+        ...ratings,
         updatedAt: new Date(),
       })
       .where(eq(jobs.id, job.id));

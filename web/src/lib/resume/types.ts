@@ -67,10 +67,14 @@ export interface UserInfo {
   gpa: number | null;
   yearLevel: number | null;
   program: string;
+  // Unanswered (undefined or null) means unknown: a posting's citizenship or
+  // licence requirement is then shown on the posting but not warned about.
+  citizenOrPermanentResident?: boolean | null;
+  hasDriversLicence?: boolean | null;
 }
 
 export interface QualificationWarning {
-  type: "gpa" | "coop_term" | "program" | "year_level";
+  type: "gpa" | "coop_term" | "program" | "year_level" | "citizenship" | "drivers_licence";
   message: string;
 }
 
@@ -81,9 +85,13 @@ export interface MatchedSkillInfo {
   weight: number;
 }
 
+// "pending": the posting's skills have not been extracted yet, so nothing is
+// known about them — not the same as a posting that names none.
+export type SkillSource = "ai" | "pending";
+
 export interface MatchDebug {
   skills: {
-    source: "ai" | "regex";
+    source: SkillSource;
     jobSkills: string[];
     matched: MatchedSkillInfo[];
     missing: string[];
