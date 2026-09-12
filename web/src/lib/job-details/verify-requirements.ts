@@ -29,6 +29,16 @@ const VALUE_RANGE: Partial<Record<RequirementKind, { min: number; max: number }>
 
 const MAX_SUMMARY_LENGTH = 80;
 
+// Whether the posting's own sentence only prefers it. The model sometimes
+// files "8 month consecutive work term preferred" as required; the sentence
+// settles it, unless it also says something is required.
+const PREFERS = /\b(?:preferred|preferably|an? (?:asset|plus|bonus)|nice to have|desirable|advantageous|considered an asset|would be an asset)\b/i;
+const REQUIRES = /\b(?:required|requires?|must|mandatory|necessary|need to|needs to)\b/i;
+
+export function onlyPreferred(quote: string): boolean {
+  return PREFERS.test(quote) && !REQUIRES.test(quote);
+}
+
 export interface RequirementVerification {
   requirements: Requirement[];
   notes: string[];
@@ -72,7 +82,7 @@ function judge(entry: unknown, folded: string): Requirement | string {
     kind,
     summary: summary || quote.slice(0, MAX_SUMMARY_LENGTH),
     value: value === "invalid" ? null : value,
-    required: record.required !== false,
+    required: record.required !== false && !onlyPreferred(quote),
     quote,
   };
 }

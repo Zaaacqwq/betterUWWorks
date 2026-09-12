@@ -3,6 +3,7 @@ import { jobs } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { Extractor } from "@/lib/extraction/runner";
 import { extractPostingDetails, type PostingForDetails } from "./extract";
+import { withDurationRequirement } from "./duration";
 import type { PostingDetails } from "./types";
 
 const NOTHING_TO_READ: PostingDetails = { pay: null, requirements: [] };
@@ -24,7 +25,8 @@ export const detailExtractor: Extractor<PostingForDetails> = {
       .limit(limit),
   async process(job) {
     const outcome = await extractPostingDetails(job);
-    const details = outcome.kind === "extracted" ? outcome.reading.details : NOTHING_TO_READ;
+    const read = outcome.kind === "extracted" ? outcome.reading.details : NOTHING_TO_READ;
+    const details = withDurationRequirement(read, job.rawDetail);
     const hourly = details.pay?.hourlyCad ?? null;
     await db
       .update(jobs)

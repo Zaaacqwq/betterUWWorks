@@ -113,6 +113,18 @@ describe("verifyRequirements", () => {
     expect(requirements[0]).toMatchObject({ kind: "min_year", value: 4 });
   });
 
+  it("takes a requirement the sentence only prefers as preferred, whatever the reading said", () => {
+    const quote = "8 month consecutive work term preferred";
+    const { requirements } = verifyRequirements([entry("consecutive_terms", quote, { required: true })], quote);
+    expect(requirements[0].required).toBe(false);
+  });
+
+  it("keeps a requirement required when the sentence says so, even beside a preference", () => {
+    const quote = "Must be eligible for an 8-month work term; a 12-month term is preferred.";
+    const { requirements } = verifyRequirements([entry("consecutive_terms", quote)], quote);
+    expect(requirements[0].required).toBe(true);
+  });
+
   it("returns nothing when there are no requirements", () => {
     expect(verifyRequirements([], POSTING).requirements).toEqual([]);
     expect(verifyRequirements(null, POSTING)).toEqual({ requirements: [], notes: [] });
