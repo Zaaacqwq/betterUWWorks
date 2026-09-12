@@ -7,6 +7,7 @@ import { extractRatingsData } from "@/lib/extract-ratings";
 import { runPending } from "@/lib/extraction/runner";
 import { skillExtractor } from "@/lib/job-skills/run";
 import { detailExtractor } from "@/lib/job-details/run";
+import { summaryExtractor } from "@/lib/job-summary/run";
 import { sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
@@ -135,9 +136,9 @@ export async function POST(request: NextRequest) {
             aiDetailsAt: staleUnless(DETAIL_SOURCE_CHANGED, jobs.aiDetailsAt),
             parsedHourlyMin: staleUnless(DETAIL_SOURCE_CHANGED, jobs.parsedHourlyMin),
             parsedHourlyMax: staleUnless(DETAIL_SOURCE_CHANGED, jobs.parsedHourlyMax),
-            // The summary is written once and shared, so it has to go too.
-            aiSummary: staleUnless(DETAIL_SOURCE_CHANGED, jobs.aiSummary),
-            aiSummaryAt: staleUnless(DETAIL_SOURCE_CHANGED, jobs.aiSummaryAt),
+            // The summary reads what the skills do, and is shared by everyone.
+            aiSummary: staleUnless(SKILL_SOURCE_CHANGED, jobs.aiSummary),
+            aiSummaryAt: staleUnless(SKILL_SOURCE_CHANGED, jobs.aiSummaryAt),
             workTermRatings: fromDetail(jobs.workTermRatings),
             employerRating: fromDetail(jobs.employerRating),
             employerRatingCount: fromDetail(jobs.employerRatingCount),
@@ -158,6 +159,7 @@ export async function POST(request: NextRequest) {
     Promise.all([
       runPending(skillExtractor, importedIds.length, { jobIds: importedIds }),
       runPending(detailExtractor, importedIds.length, { jobIds: importedIds }),
+      runPending(summaryExtractor, importedIds.length, { jobIds: importedIds }),
     ])
   );
 

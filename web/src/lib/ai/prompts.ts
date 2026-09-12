@@ -1,45 +1,18 @@
-export const JOB_SUMMARY_SYSTEM = `You are a concise career advisor helping University of Waterloo co-op students quickly understand job postings. Respond in the same language as the job posting (English or French).`;
+export const JOB_GLANCE_SYSTEM = `You tell co-op students, in plain words, what a job is actually about. You only restate what the posting says. Output ONLY valid JSON, nothing else.`;
 
-export function jobSummaryPrompt(job: {
-  title: string;
-  organization: string;
-  jobSummary: string | null;
-  jobResponsibilities: string | null;
-  requiredSkills: string | null;
-  specialRequirements: string | null;
-  compensation: string | null;
-  level: string | null;
-  location: string | null;
-}): string {
-  const sections = [
-    `Title: ${job.title}`,
-    `Company: ${job.organization}`,
-    job.level && `Level: ${job.level}`,
-    job.location && `Location: ${job.location}`,
-    job.jobSummary && `Job Summary:\n${job.jobSummary}`,
-    job.jobResponsibilities && `Responsibilities:\n${job.jobResponsibilities}`,
-    job.requiredSkills && `Required Skills:\n${job.requiredSkills}`,
-    job.specialRequirements && `Special Requirements:\n${job.specialRequirements}`,
-    job.compensation && `Compensation:\n${job.compensation}`,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+// The one thing about a posting only a model can give: what the work is, in a
+// sentence. Skills, pay and requirements are shown from their own checked
+// readings, so this leaves them out. Checked in lib/job-summary/verify.ts.
+export function jobGlancePrompt(postingText: string): string {
+  return `In ONE or TWO short sentences (at most 35 words), say what the student would actually do day to day in this job, and on what — the product, team or field. Start with a verb ("Build…", "Prepare…", "Test…"); don't open with "The student" or "You". Plain words: no hype, no "join our exciting team". Leave out pay, requirements, skills lists, location and how to apply; those are shown separately. Write in the posting's own language (English or French).
 
-  return `Summarize this co-op job posting. Output format:
+Then copy, character for character, the one to three sentences of the posting your summary is based on. Any number in your summary must appear in one of those sentences — include the sentence it comes from, or leave the number out.
 
-**TLDR**: 1-2 sentences describing what you'd actually be doing day-to-day.
-
-**Key Skills**: comma-separated list of the most important skills/technologies (max 8).
-
-**Good Fit If You**: 2-3 bullet points describing what kind of student would thrive here.
-
-**Watch Out**: 1-2 bullet points about things to be aware of (demanding requirements, niche skills, relocation, etc). If nothing notable, omit this section.
-
-Be direct and practical. No fluff. Students are scanning dozens of postings — help them decide in 10 seconds.
+Return ONLY this JSON: {"summary": "...", "basis": ["exact sentence from the posting", ...]}
 
 ---
 
-${sections}`;
+${postingText}`;
 }
 
 export const RESUME_EXTRACT_SYSTEM = `You are a resume parser for University of Waterloo co-op students. Extract structured data from resumes with evidence-based capability analysis. Output ONLY valid JSON, no markdown fences, no explanation.`;

@@ -1,59 +1,38 @@
 import { db } from "@/db";
 import { jobs } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { streamText } from "ai";
-import { models, FAST_OPTIONS } from "@/lib/ai/provider";
-import { JOB_SUMMARY_SYSTEM, jobSummaryPrompt } from "@/lib/ai/prompts";
+import { runPending } from "@/lib/extraction/runner";
+import { summaryExtractor } from "@/lib/job-summary/run";
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+const POLL_MS = 1000;
+const MAX_WAIT_MS = 30_000;
+
+// A posting's one-line summary. Imports write it in the background; this only
+// writes it on the spot for a posting opened before that got to it.
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const result = await db
-    .select({
-      jobId: jobs.jobId,
-      title: jobs.title,
-      organization: jobs.organization,
-      level: jobs.level,
-      location: jobs.location,
-      jobSummary: jobs.jobSummary,
-      jobResponsibilities: jobs.jobResponsibilities,
-      requiredSkills: jobs.requiredSkills,
-      specialRequirements: jobs.specialRequirements,
-      compensation: jobs.compensation,
-      aiSummary: jobs.aiSummary,
-    })
-    .from(jobs)
-    .where(eq(jobs.jobId, id))
-    .limit(1);
+  const read = async () =>
+    (await db.select({ summary: jobs.aiSummary }).from(jobs).where(eq(jobs.jobId, id)).limit(1))[0];
 
-  if (result.length === 0) {
-    return Response.json(
-      { success: false, error: "Job not found" },
-      { status: 404 }
-    );
+  const row = await read();
+  if (!row) return Response.json({ success: false, error: "Job not found" }, { status: 404 });
+  if (row.summary !== null) return Response.json({ success: true, data: { summary: row.summary || null } });
+
+  const run = await runPending(summaryExtractor, 1, { jobIds: [id] });
+  if (run.failures.length > 0) {
+    return Response.json({ success: false, error: "Couldn't summarize this posting" }, { status: 502 });
   }
-
-  const job = result[0];
-
-  if (job.aiSummary) {
-    return Response.json({ success: true, data: job.aiSummary, cached: true });
+  // Already being summarized by a background run: wait for it rather than
+  // answer "no summary" a moment before there is one.
+  for (let waited = 0; run.skipped > 0 && waited < MAX_WAIT_MS; waited += POLL_MS) {
+    const row = await read();
+    if (row?.summary !== null) break;
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
   }
-
-  const stream = streamText({
-    model: models.fast,
-    providerOptions: FAST_OPTIONS,
-    system: JOB_SUMMARY_SYSTEM,
-    prompt: jobSummaryPrompt(job),
-    async onFinish({ text }) {
-      await db
-        .update(jobs)
-        .set({ aiSummary: text, aiSummaryAt: new Date() })
-        .where(eq(jobs.jobId, id));
-    },
-  });
-
-  return stream.toTextStreamResponse();
+  const after = await read();
+  if (after?.summary === null) {
+    return Response.json({ success: false, error: "Still summarizing this posting" }, { status: 503 });
+  }
+  return Response.json({ success: true, data: { summary: after?.summary || null } });
 }
