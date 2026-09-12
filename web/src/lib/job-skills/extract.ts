@@ -5,6 +5,7 @@ import { AiJsonError, parseAiJson } from "@/lib/ai/json";
 import { normalizeSkill } from "@/lib/resume/skill-utils";
 import { buildSkillSource, hasSkillSource, renderSkillSource } from "./source";
 import { verifySkills, type SkillVerdict, type VerifiedSkills } from "./verify";
+import { mergeVendorVariants } from "./vendor";
 
 export interface PostingForSkills {
   jobId: string;
@@ -59,9 +60,11 @@ export function mergeReadings(readings: VerifiedSkills[]): VerifiedSkills {
     }
   }
 
-  const skills = [...bySkill.values()]
-    .sort((a, b) => b.count - a.count || a.first - b.first)
-    .map(({ names }) => [...names.entries()].sort((a, b) => b[1] - a[1])[0][0]);
+  const skills = mergeVendorVariants(
+    [...bySkill.values()]
+      .sort((a, b) => b.count - a.count || a.first - b.first)
+      .map(({ names }) => [...names.entries()].sort((a, b) => b[1] - a[1])[0][0])
+  );
   const verdicts: SkillVerdict[] = readings.flatMap((r) => r.verdicts);
   return { skills, verdicts };
 }
