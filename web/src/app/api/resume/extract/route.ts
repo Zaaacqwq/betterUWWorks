@@ -3,10 +3,11 @@ import { models, FAST_OPTIONS } from "@/lib/ai/provider";
 import { RESUME_EXTRACT_SYSTEM, resumeExtractPrompt } from "@/lib/ai/prompts";
 import { AiJsonError, parseAiJson } from "@/lib/ai/json";
 import type { Capability, EvidenceType, ResumeProfile, Skill } from "@/lib/resume/types";
+import { verifiedExperience, verifyCapabilities, type RawCapability } from "@/lib/resume/verify-capabilities";
 
 const VALID_EVIDENCE_TYPES = new Set<EvidenceType>(["work_used", "project_used", "explicit", "inferred", "weak_inferred"]);
 
-function parseCapability(raw: Record<string, unknown>): Capability | null {
+function parseCapability(raw: Record<string, unknown>): RawCapability | null {
   if (typeof raw.name !== "string" || !raw.name.trim()) return null;
 
   const evidenceType = VALID_EVIDENCE_TYPES.has(raw.evidence_type as EvidenceType)
@@ -20,6 +21,7 @@ function parseCapability(raw: Record<string, unknown>): Capability | null {
     evidenceType,
     confidence: Math.max(0, Math.min(1, typeof raw.confidence === "number" ? raw.confidence : 0.5)),
     reasoning: typeof raw.reasoning === "string" ? raw.reasoning : "",
+    mention: typeof raw.mention === "string" ? raw.mention : null,
   };
 }
 
@@ -76,9 +78,11 @@ export async function POST(request: Request) {
     const parsed = parseAiJson<Record<string, unknown>>(raw, "resume extraction");
 
     const rawCaps = Array.isArray(parsed.capabilities) ? parsed.capabilities : [];
-    const capabilities = rawCaps
+    const parsedCaps = rawCaps
       .map((c: Record<string, unknown>) => parseCapability(c))
-      .filter((c: Capability | null): c is Capability => c !== null);
+      .filter((c: RawCapability | null): c is RawCapability => c !== null);
+    // Only what the resume shows counts as written on it (verify-capabilities.ts).
+    const { capabilities } = verifyCapabilities(parsedCaps, text);
 
     const skills = capabilities.length > 0
       ? capabilitiesToSkills(capabilities)
@@ -89,7 +93,7 @@ export async function POST(request: Request) {
       skills,
       profileSchema: 2,
       education: Array.isArray(parsed.education) ? parsed.education : [],
-      experience: Array.isArray(parsed.experience) ? parsed.experience : [],
+      experience: verifiedExperience(Array.isArray(parsed.experience) ? parsed.experience : [], capabilities),
       coopTermCount: typeof parsed.coopTermCount === "number" ? parsed.coopTermCount : 0,
       programs: Array.isArray(parsed.programs) ? parsed.programs : [],
       preferredLocations: Array.isArray(parsed.preferredLocations) ? parsed.preferredLocations : [],

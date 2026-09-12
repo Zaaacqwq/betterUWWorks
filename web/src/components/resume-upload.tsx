@@ -431,8 +431,8 @@ const EVIDENCE_GROUPS: { type: EvidenceType; label: string }[] = [
   { type: "work_used", label: "Used in Work" },
   { type: "project_used", label: "Used in Projects" },
   { type: "explicit", label: "Skills Section Only" },
-  { type: "inferred", label: "Inferred" },
-  { type: "weak_inferred", label: "Weakly Inferred" },
+  { type: "inferred", label: "Suggested — click one to confirm it; it counts once you do" },
+  { type: "weak_inferred", label: "Loosely suggested — click one to confirm it" },
 ];
 
 const EVIDENCE_STYLE: Record<EvidenceType, string> = {

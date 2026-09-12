@@ -1,7 +1,14 @@
 import type { ResumeProfile, UserInfo, MatchScore, MatchDebug, SkillSource } from "./types";
 import type { PostingDetails } from "@/lib/job-details/types";
 import { computeSkillOverlap } from "./skill-utils";
-import { applySkillLevels, buildCapabilityMap, computeWeightedOverlap, extraSkillsToCapabilities, type SkillLevels } from "./capability-utils";
+import {
+  applySkillLevels,
+  buildCapabilityMap,
+  computeWeightedOverlap,
+  countedCapabilities,
+  extraSkillsToCapabilities,
+  type SkillLevels,
+} from "./capability-utils";
 import { programFit, requirementWarnings } from "./requirement-checks";
 
 export interface JobForMatch {
@@ -81,7 +88,7 @@ function scoreSkills(profile: ResumeProfile, job: JobForMatch, extraSkills?: str
       [...profile.capabilities, ...extraSkillsToCapabilities(extraSkills ?? [])],
       skillLevels
     );
-    const capMap = buildCapabilityMap(allCaps);
+    const capMap = buildCapabilityMap(countedCapabilities(allCaps));
     const result = computeWeightedOverlap(capMap, jobSkills);
 
     return {

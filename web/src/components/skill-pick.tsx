@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useResume } from "@/hooks/use-resume";
 import { usePopover } from "@/hooks/use-popover";
-import { buildCapabilityMap } from "@/lib/resume/capability-utils";
+import { buildCapabilityMap, isSuggestion } from "@/lib/resume/capability-utils";
 import { expandSkill, normalizeSkill } from "@/lib/resume/skill-utils";
 import type { SkillLevel } from "@/lib/resume/types";
 
@@ -12,8 +12,9 @@ import type { SkillLevel } from "@/lib/resume/types";
 // wherever a posting's skills are listed, and in the resume panel.
 
 export interface MySkill {
-  // "resume": the resume shows it; "added": the student added it.
-  source: "resume" | "added" | null;
+  // "resume": the resume shows it; "suggested": the resume only suggests it,
+  // and it counts once confirmed; "added": the student added it.
+  source: "resume" | "suggested" | "added" | null;
   // The level the student set; null when they haven't set one.
   level: SkillLevel | null;
 }
@@ -26,7 +27,8 @@ export function useMySkills(): (name: string) => MySkill {
     return (name: string) => {
       const keys = expandSkill(name).map(normalizeSkill);
       const level = keys.map((k) => skillLevels[k]).find(Boolean) ?? null;
-      if (keys.some((k) => onResume.has(k))) return { source: "resume", level };
+      const onPage = keys.map((k) => onResume.get(k)).find(Boolean);
+      if (onPage) return { source: isSuggestion(onPage) && !level ? "suggested" : "resume", level };
       if (keys.some((k) => added.has(k))) return { source: "added", level: level ?? "proficient" };
       return { source: null, level: null };
     };
@@ -66,12 +68,13 @@ export function SkillPick({ name, className, suffix, title, showCheck = true }: 
   }
 
   const choose = (level: SkillLevel) => {
-    if (mine.source === "resume") setSkillLevel(name, level);
+    if (mine.source === "resume" || mine.source === "suggested") setSkillLevel(name, level);
     else addSkill(name, level);
     setOpen(false);
   };
 
-  const marker = mine.level === "familiar" ? " · a little" : mine.source && showCheck ? " ✓" : "";
+  const marker =
+    mine.source === "suggested" ? " ?" : mine.level === "familiar" ? " · a little" : mine.source && showCheck ? " ✓" : "";
 
   return (
     <span ref={ref} className="relative inline-flex">
@@ -79,7 +82,14 @@ export function SkillPick({ name, className, suffix, title, showCheck = true }: 
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="true"
-        title={title ?? (mine.source ? "Change how well you know this" : "Add to your skills")}
+        title={
+          title ??
+          (mine.source === "suggested"
+            ? "Suggested by your resume — click to confirm"
+            : mine.source
+              ? "Change how well you know this"
+              : "Add to your skills")
+        }
         className={`${className} cursor-pointer hover:brightness-95`}
       >
         {name}
@@ -92,7 +102,11 @@ export function SkillPick({ name, className, suffix, title, showCheck = true }: 
           className="absolute z-30 top-full left-0 mt-1 w-48 bg-canvas border border-hairline rounded-lg shadow-[var(--shadow-pop)] py-1 text-left"
         >
           <span className="block px-3 pt-1 pb-1.5 text-[11px] text-stone">
-            {mine.source ? `${name} is in your skills` : `Add ${name} to your skills`}
+            {mine.source === "suggested"
+              ? `Your resume suggests ${name}. It counts once you say how well you know it.`
+              : mine.source
+                ? `${name} is in your skills`
+                : `Add ${name} to your skills`}
           </span>
           {LEVELS.map(({ level, label }) => (
             <button

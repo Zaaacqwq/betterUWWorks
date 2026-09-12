@@ -107,3 +107,14 @@ export function computeWeightedOverlap(
     missing,
   };
 }
+
+// Skills the resume only suggests (the parser inferred them, or couldn't point
+// to them on the page) count once the student confirms them by setting a
+// level; until then a match never credits a skill the resume doesn't show.
+export function isSuggestion(capability: Capability): boolean {
+  return (capability.evidenceType === "inferred" || capability.evidenceType === "weak_inferred") && !capability.level;
+}
+
+export function countedCapabilities(capabilities: Capability[]): Capability[] {
+  return capabilities.filter((c) => !isSuggestion(c));
+}
