@@ -9,6 +9,8 @@ import { useSavedJobs } from "@/hooks/use-saved-jobs";
 import { useResume } from "@/hooks/use-resume";
 import { useMatchScores } from "@/hooks/use-match-scores";
 import { ResumeUpload } from "./resume-upload";
+import { AppHeader, type ClearState } from "./app-header";
+import { ChevronLeftIcon } from "./icons";
 import type { JobSummary, Filters } from "./types/job";
 
 interface FilterOption {
@@ -34,6 +36,7 @@ const DEFAULT_FILTERS: Filters = {
   jobType: "",
   minPay: "",
   minRating: "",
+  hideRequirement: "",
   sort: "match",
   order: "desc",
 };
@@ -52,20 +55,23 @@ export function JobListPage() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [jobs, setJobs] = useState<JobSummary[]>([]);
-  const [totalFromServer, setTotalFromServer] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
-  const [clearState, setClearState] = useState<"idle" | "confirming" | "clearing">("idle");
+  const [clearState, setClearState] = useState<ClearState>("idle");
+  // Rows in the table regardless of search and filters: the list header shows
+  // "n of total", and Clear has to name the whole table's count to the server.
+  const [catalogTotal, setCatalogTotal] = useState<number | null>(null);
+  const [searchKey, setSearchKey] = useState(0);
   const [clearError, setClearError] = useState<string | null>(null);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     locations: [], levels: [], arrangements: [], durations: [], workTerms: [], jobTypes: [],
   });
 
   const { savedIds, toggle: toggleSave, isSaved, count: savedCount } = useSavedJobs();
-  const { profile, hasResume, userInfo, extraSkills } = useResume();
-  const { scores } = useMatchScores(profile, userInfo, jobs, extraSkills);
+  const { profile, hasResume, userInfo, extraSkills, skillLevels } = useResume();
+  const { scores } = useMatchScores(profile, userInfo, jobs, extraSkills, skillLevels);
   const [resumeOpen, setResumeOpen] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -102,6 +108,7 @@ export function JobListPage() {
     if (filters.jobType) params.set("jobType", filters.jobType);
     if (filters.minPay) params.set("minPay", filters.minPay);
     if (filters.minRating) params.set("minRating", filters.minRating);
+    if (filters.hideRequirement) params.set("hideRequirement", filters.hideRequirement);
     params.set("page", "1");
     params.set("limit", "9999");
 
@@ -110,7 +117,6 @@ export function JobListPage() {
       .then((data) => {
         if (data.success) {
           setJobs(data.data);
-          setTotalFromServer(data.meta.total);
         }
       })
       .catch((e) => {
@@ -122,6 +128,24 @@ export function JobListPage() {
   useEffect(() => {
     fetchJobs();
   }, [fetchJobs]);
+
+  const fetchCatalogTotal = useCallback(() => {
+    fetch("/api/jobs?limit=1")
+      .then((r) => r.json())
+      .then((data) => setCatalogTotal(data.success ? data.meta.total : null))
+      // Unknown total: the list shows its own count and delete stays off
+      // until a refresh succeeds, since the server needs the exact number.
+      .catch(() => setCatalogTotal(null));
+  }, []);
+
+  useEffect(() => {
+    fetchCatalogTotal();
+  }, [fetchCatalogTotal]);
+
+  const handleRefresh = useCallback(() => {
+    fetchJobs();
+    fetchCatalogTotal();
+  }, [fetchJobs, fetchCatalogTotal]);
 
   // Two-step so a stray click cannot wipe a scrape; the count goes along so the
   // server refuses if the table changed since this page loaded.
@@ -135,20 +159,31 @@ export function JobListPage() {
 
     setClearState("clearing");
     try {
-      const resp = await fetch(`/api/jobs?expected=${totalFromServer}`, { method: "DELETE" });
+      const resp = await fetch(`/api/jobs?expected=${catalogTotal ?? 0}`, { method: "DELETE" });
       const result = await resp.json();
       if (!resp.ok || !result.success) {
         setClearError(result.error || resp.statusText);
         return;
       }
       setSelectedJobId(null);
-      fetchJobs();
+      handleRefresh();
     } catch (err) {
       setClearError(err instanceof Error ? err.message : "Could not reach the server");
     } finally {
       setClearState("idle");
     }
-  }, [clearState, totalFromServer, fetchJobs]);
+  }, [clearState, catalogTotal, handleRefresh]);
+
+  const cancelClear = useCallback(() => {
+    setClearState((s) => (s === "confirming" ? "idle" : s));
+  }, []);
+
+  // Restore from URL on mount. This has to run before the sync below, whose
+  // first pass sees no selection yet and strips ?job= from the URL.
+  useEffect(() => {
+    const jobFromUrl = new URLSearchParams(window.location.search).get("job");
+    if (jobFromUrl) setSelectedJobId(jobFromUrl);
+  }, []);
 
   // Sync selectedJobId to URL query param
   useEffect(() => {
@@ -160,12 +195,6 @@ export function JobListPage() {
     }
     window.history.replaceState({}, "", url.toString());
   }, [selectedJobId]);
-
-  // Restore from URL on mount
-  useEffect(() => {
-    const jobFromUrl = new URLSearchParams(window.location.search).get("job");
-    if (jobFromUrl) setSelectedJobId(jobFromUrl);
-  }, []);
 
   const handleSelectJob = useCallback((jobId: string) => {
     setSelectedJobId(jobId);
@@ -192,8 +221,9 @@ export function JobListPage() {
   ).length + (query ? 1 : 0);
 
   const handleClearAll = useCallback(() => {
-    setFilters(DEFAULT_FILTERS);
+    setFilters((prev) => ({ ...DEFAULT_FILTERS, sort: prev.sort, order: prev.order }));
     setQuery("");
+    setSearchKey((k) => k + 1);
     setPage(1);
   }, []);
 
@@ -234,7 +264,12 @@ export function JobListPage() {
   // Keyboard navigation
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      if (resumeOpen) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLSelectElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) return;
 
       if (e.key === "Escape" && selectedJobId) {
         handleCloseDetail();
@@ -259,120 +294,71 @@ export function JobListPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [paginatedJobs, selectedJobId, handleCloseDetail]);
+  }, [paginatedJobs, selectedJobId, handleCloseDetail, resumeOpen]);
 
   return (
-    <div className="h-screen flex flex-col bg-surface-soft">
-      {/* Header */}
-      <header className="bg-brand-navy shrink-0">
-        <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-on-primary text-sm font-bold shrink-0">
-              B
-            </div>
-            <h1 className="text-base font-semibold text-white tracking-tight">
-              betterUWWorks
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setResumeOpen(true)}
-              className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
-                hasResume
-                  ? "bg-brand-green/80 text-white"
-                  : "bg-white/10 text-white/70 hover:text-white hover:bg-white/15"
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Resume
-            </button>
-            <button
-              onClick={() => setShowSavedOnly((v) => !v)}
-              className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
-                showSavedOnly
-                  ? "bg-primary text-on-primary"
-                  : "bg-white/10 text-white/70 hover:text-white hover:bg-white/15"
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill={showSavedOnly ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-              </svg>
-              Saved{savedCount > 0 ? ` (${savedCount})` : ""}
-            </button>
-            <button
-              onClick={fetchJobs}
-              className="flex items-center gap-1 text-xs text-white/70 hover:text-white transition-colors"
-              title="Refresh"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4.929 9A8 8 0 0119.07 9M19.071 15A8 8 0 014.93 15" />
-              </svg>
-            </button>
-            <button
-              onClick={clearAllJobs}
-              onBlur={() => clearState === "confirming" && setClearState("idle")}
-              disabled={clearState === "clearing" || totalFromServer === 0}
-              className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full transition-colors disabled:opacity-40 ${
-                clearState === "confirming"
-                  ? "bg-red-500 text-white"
-                  : "text-white/70 hover:text-white hover:bg-white/10"
-              }`}
-              title={clearState === "confirming" ? "Click again to delete" : "Delete all jobs"}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              {clearState === "clearing"
-                ? "Clearing..."
-                : clearState === "confirming"
-                  ? `Delete all ${totalFromServer}?`
-                  : "Clear"}
-            </button>
-            <p className="text-xs text-stone">
-              {clearError ?? `${totalFromServer} jobs`}
-            </p>
-          </div>
-        </div>
-      </header>
+    <div className="h-screen flex flex-col bg-surface">
+      <AppHeader
+        savedCount={savedCount}
+        showSavedOnly={showSavedOnly}
+        onToggleSaved={() => setShowSavedOnly((v) => !v)}
+        hasResume={hasResume}
+        onOpenResume={() => setResumeOpen(true)}
+        onRefresh={handleRefresh}
+        catalogTotal={catalogTotal}
+        clearState={clearState}
+        clearError={clearError}
+        onClearAll={clearAllJobs}
+        onCancelClear={cancelClear}
+      />
 
       {/* Split panel body */}
-      <div className="flex-1 flex min-h-0 max-w-[1400px] w-full mx-auto">
+      <div className="flex-1 flex min-h-0 max-w-[1400px] w-full mx-auto min-[1400px]:border-x min-[1400px]:border-hairline">
         {/* Left panel: list */}
         <div
-          className={`flex flex-col w-full lg:w-[480px] xl:w-[520px] lg:shrink-0 lg:border-r lg:border-hairline bg-surface-soft ${
+          className={`flex flex-col w-full lg:w-[452px] xl:w-[480px] lg:shrink-0 lg:border-r lg:border-hairline bg-surface ${
             mobileDetailOpen ? "hidden lg:flex" : "flex"
           }`}
         >
-          <div className="px-5 pt-4 pb-3 space-y-3 shrink-0">
-            <SearchBar value={query} onChange={handleQueryChange} />
+          <div className="px-4 pt-4 pb-2.5 space-y-2.5 shrink-0">
+            <SearchBar key={searchKey} value={query} onChange={handleQueryChange} />
             <FilterBar
               filters={filters}
               options={filterOptions}
               onChange={handleFilterChange}
-              total={totalFromServer}
               activeFilterCount={activeFilterCount}
               onClearAll={handleClearAll}
+              shownCount={sortedJobs.length}
+              catalogTotal={catalogTotal}
+              loading={loading}
             />
           </div>
 
-          <div ref={listRef} className="flex-1 overflow-y-auto px-5 pb-4">
+          <div ref={listRef} className="flex-1 overflow-y-auto px-4 pb-4">
             {loading ? (
-              <div className="text-center py-16 text-stone">Loading jobs...</div>
+              <ListSkeleton />
+            ) : catalogTotal === 0 ? (
+              <EmptyState
+                title="No jobs yet"
+                body="Open WaterlooWorks with the betterUWWorks extension and scrape a job board. Postings show up here once they're imported."
+                action={{ label: "Refresh", onClick: handleRefresh }}
+              />
             ) : sortedJobs.length === 0 ? (
-              <div className="text-center py-16">
-                <p className="text-stone text-lg">
-                  {showSavedOnly ? "No saved jobs" : "No jobs found"}
-                </p>
-                <p className="text-muted text-sm mt-1">
-                  {showSavedOnly
-                    ? "Save jobs from the detail panel to see them here"
-                    : "Try adjusting your search or filters"}
-                </p>
-              </div>
+              showSavedOnly && savedCount === 0 ? (
+                <EmptyState
+                  title="No saved jobs yet"
+                  body="Save a job from its detail panel to keep it here."
+                  action={{ label: "Show all jobs", onClick: () => setShowSavedOnly(false) }}
+                />
+              ) : (
+                <EmptyState
+                  title={showSavedOnly ? "No saved jobs match" : "No jobs match"}
+                  body="Nothing fits the current search and filters."
+                  action={activeFilterCount > 0 ? { label: "Clear filters", onClick: handleClearAll } : undefined}
+                />
+              )
             ) : (
-              <div className="space-y-2.5">
+              <div className="grid gap-2">
                 {paginatedJobs.map((job) => (
                   <div key={job.jobId} data-job-id={job.jobId}>
                     <JobCard
@@ -387,22 +373,22 @@ export function JobListPage() {
               </div>
             )}
 
-            {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 pt-4 pb-4">
+            {!loading && totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 pt-4 pb-2">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={safePage <= 1}
-                  className="px-4 py-2 text-sm font-medium rounded-lg border border-hairline bg-canvas text-charcoal hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className={PAGE_BUTTON}
                 >
                   Previous
                 </button>
-                <span className="text-sm text-slate px-3">
+                <span className="text-[12.5px] text-steel tabular-nums">
                   Page {safePage} of {totalPages}
                 </span>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={safePage >= totalPages}
-                  className="px-4 py-2 text-sm font-medium rounded-lg border border-hairline bg-canvas text-charcoal hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className={PAGE_BUTTON}
                 >
                   Next
                 </button>
@@ -413,27 +399,25 @@ export function JobListPage() {
 
         {/* Right panel: detail */}
         <div
-          className={`flex-1 bg-canvas overflow-hidden ${
+          className={`flex-1 min-w-0 bg-canvas overflow-hidden ${
             mobileDetailOpen ? "flex flex-col" : "hidden lg:flex lg:flex-col"
           }`}
         >
-          {/* Mobile back button */}
           {mobileDetailOpen && (
-            <div className="lg:hidden px-4 py-2.5 border-b border-hairline bg-canvas shrink-0">
+            <div className="lg:hidden px-3 py-2 border-b border-hairline-soft bg-canvas shrink-0">
               <button
                 onClick={() => setMobileDetailOpen(false)}
-                className="flex items-center gap-1.5 text-sm text-link-blue font-medium"
+                className="h-8 flex items-center gap-1 px-1.5 rounded-lg text-[13px] font-medium text-charcoal hover:bg-surface"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to list
+                <ChevronLeftIcon className="w-4 h-4" />
+                All jobs
               </button>
             </div>
           )}
           <JobDetailPanel
             jobId={selectedJobId}
             saved={selectedJobId ? isSaved(selectedJobId) : false}
+            matchScore={selectedJobId ? scores[selectedJobId] : undefined}
             onToggleSave={toggleSave}
             onClose={handleCloseDetail}
           />
@@ -441,6 +425,45 @@ export function JobListPage() {
       </div>
 
       <ResumeUpload open={resumeOpen} onClose={() => setResumeOpen(false)} />
+    </div>
+  );
+}
+
+const PAGE_BUTTON =
+  "h-8 px-3 text-[13px] font-medium rounded-lg border border-hairline bg-canvas text-charcoal hover:bg-surface-soft disabled:opacity-40 disabled:cursor-not-allowed transition-colors";
+
+function EmptyState({
+  title,
+  body,
+  action,
+}: {
+  title: string;
+  body: string;
+  action?: { label: string; onClick: () => void };
+}) {
+  return (
+    <div className="flex flex-col items-center text-center px-6 py-16 gap-1.5">
+      <p className="text-[15px] font-semibold text-ink">{title}</p>
+      <p className="text-[13px] text-slate max-w-[34ch]">{body}</p>
+      {action && (
+        <button onClick={action.onClick} className={`${PAGE_BUTTON} mt-3`}>
+          {action.label}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <div className="grid gap-2 animate-pulse" aria-label="Loading jobs">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="bg-canvas border border-hairline rounded-[10px] px-3.5 py-3 space-y-2">
+          <div className="h-3.5 bg-surface rounded w-3/4" />
+          <div className="h-3 bg-surface rounded w-1/2" />
+          <div className="h-3 bg-surface rounded w-2/3" />
+        </div>
+      ))}
     </div>
   );
 }

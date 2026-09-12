@@ -31,6 +31,30 @@
   --success: #1aae39;
   --warning: #dd5b00;
   --error: #e03131;
+
+  /* Selection and active-filter tint for the purple accent. */
+  --primary-tint: #efedfb;
+  --primary-line: #d6d0f6;
+
+  /* Status colors for text and small marks on white. The brand green and
+     orange above are too light to read as 12px text, so scores, ratings and
+     deadlines use these instead. */
+  --good: #1a8f45;
+  --fair: #c26a00;
+  --poor: #c92a2a;
+
+  /* Chart series, in the order they are assigned. */
+  --chart-1: #5645d4;
+  --chart-2: #2a9d99;
+  --chart-3: #dd5b00;
+  --chart-4: #0075de;
+  --chart-5: #a02e6d;
+  --chart-6: #1aae39;
+  --chart-7: #c9a227;
+  --chart-8: #a4a097;
+
+  /* Menus and popovers floating over the page. */
+  --shadow-pop: 0 16px 48px -8px rgba(15, 15, 15, 0.16);
 }
 
 @theme inline {
@@ -62,6 +86,11 @@
   --color-card-tint-peach: var(--card-tint-peach);
   --color-card-tint-mint: var(--card-tint-mint);
   --color-card-tint-lavender: var(--card-tint-lavender);
+  --color-primary-tint: var(--primary-tint);
+  --color-primary-line: var(--primary-line);
+  --color-good: var(--good);
+  --color-fair: var(--fair);
+  --color-poor: var(--poor);
   --font-sans: var(--font-inter), system-ui, sans-serif;
 }
 

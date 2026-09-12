@@ -1,8 +1,8 @@
 "use client";
 
 import type { JobDetail } from "./types/job";
-import { AiSummary } from "./ai-summary";
-import { MatchAnalysis } from "./match-analysis";
+import { PostingGlance } from "./posting-glance";
+import { deadlineInfo } from "@/lib/format";
 
 interface JobDetailOverviewProps {
   job: JobDetail;
@@ -35,11 +35,10 @@ export function JobDetailOverview({ job }: JobDetailOverviewProps) {
   const extraFields = getExtraFields(job.rawDetail);
 
   return (
-    <div className="space-y-5">
-      <AiSummary jobId={job.jobId} />
-      <MatchAnalysis jobId={job.jobId} />
+    <div className="space-y-6">
+      <PostingGlance job={job} />
 
-      <KeyFactsGrid job={job} />
+      <KeyFacts job={job} />
 
       {job.jobSummary && (
         <TextSection title="Job Summary" content={job.jobSummary} />
@@ -95,36 +94,40 @@ function getExtraFields(rawDetail: Record<string, unknown> | null): { label: str
   return result;
 }
 
-function KeyFactsGrid({ job }: { job: JobDetail }) {
-  const deadline = job.deadline;
-  const deadlineColor = getDeadlineColor(deadline);
-
-  const facts: { label: string; value: string; color?: string }[] = [];
+function KeyFacts({ job }: { job: JobDetail }) {
+  const deadline = deadlineInfo(job.deadlineAt);
+  const facts: { label: string; value: string; className?: string }[] = [];
 
   if (job.location) facts.push({ label: "Location", value: job.location });
-  if (job.locationArrangement) facts.push({ label: "Work Mode", value: job.locationArrangement });
-  if (job.level) facts.push({ label: "Level", value: job.level });
-  if (job.workTerm) facts.push({ label: "Work Term", value: job.workTerm });
+  if (job.locationArrangement) facts.push({ label: "Work mode", value: job.locationArrangement });
+  if (job.workTerm) facts.push({ label: "Work term", value: job.workTerm });
   if (job.workTermDuration) facts.push({ label: "Duration", value: job.workTermDuration });
-  if (job.jobType) facts.push({ label: "Job Type", value: job.jobType });
+  if (job.level) facts.push({ label: "Level", value: job.level });
+  if (job.jobType) facts.push({ label: "Job type", value: job.jobType });
   if (job.openings != null) facts.push({ label: "Openings", value: String(job.openings) });
   if (job.totalHires != null && job.totalHires > 0) {
-    facts.push({ label: "Total Hires", value: `${job.totalHires} (past 9 terms)` });
+    facts.push({ label: "Total hires", value: `${job.totalHires} over the past 9 terms` });
   }
-  if (deadline) facts.push({ label: "Deadline", value: deadline, color: deadlineColor });
+  if (job.deadline) {
+    facts.push({
+      label: "Deadline",
+      value: job.deadline,
+      className: deadline?.urgent ? "text-poor font-medium" : deadline?.closed ? "text-stone" : undefined,
+    });
+  }
   if (job.region) facts.push({ label: "Region", value: job.region });
 
   if (facts.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-2 gap-2.5">
+    <dl className="grid grid-cols-1 sm:grid-cols-2 sm:gap-x-7">
       {facts.map((fact) => (
-        <div key={fact.label} className="bg-surface-soft border border-hairline-soft rounded-lg px-3.5 py-2.5">
-          <p className="text-[11px] text-stone font-medium uppercase tracking-wider">{fact.label}</p>
-          <p className={`text-sm font-medium mt-0.5 ${fact.color ?? "text-charcoal"}`}>{fact.value}</p>
+        <div key={fact.label} className="grid grid-cols-[96px_1fr] gap-2.5 py-2 border-b border-hairline-soft">
+          <dt className="text-[12.5px] text-steel">{fact.label}</dt>
+          <dd className={`text-[13px] text-ink ${fact.className ?? ""}`}>{fact.value}</dd>
         </div>
       ))}
-    </div>
+    </dl>
   );
 }
 
@@ -132,12 +135,12 @@ function TextSection({ title, content }: { title: string; content: string }) {
   if (isUrl(content)) {
     return (
       <div>
-        <h4 className="text-xs font-semibold text-stone uppercase tracking-wider mb-2">{title}</h4>
+        <h4 className="text-[13.5px] font-semibold text-ink mb-1.5">{title}</h4>
         <a
           href={content}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm text-link-blue hover:underline break-all"
+          className="text-[13.5px] text-link-blue hover:underline break-all"
         >
           {content}
         </a>
@@ -149,17 +152,17 @@ function TextSection({ title, content }: { title: string; content: string }) {
 
   return (
     <div>
-      <h4 className="text-xs font-semibold text-stone uppercase tracking-wider mb-2">{title}</h4>
+      <h4 className="text-[13.5px] font-semibold text-ink mb-1.5">{title}</h4>
       {lines.length > 1 ? (
         <ul className="space-y-1 ml-4">
           {lines.map((line, i) => (
-            <li key={i} className="text-sm text-charcoal leading-relaxed list-disc">
+            <li key={i} className="text-[13.5px] text-charcoal leading-relaxed list-disc marker:text-stone">
               {line}
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-charcoal leading-relaxed whitespace-pre-line">{content}</p>
+        <p className="text-[13.5px] text-charcoal leading-relaxed whitespace-pre-line max-w-[72ch]">{content}</p>
       )}
     </div>
   );
@@ -177,20 +180,4 @@ function parseBulletPoints(text: string): string[] {
 function isUrl(text: string): boolean {
   const trimmed = text.trim();
   return /^https?:\/\/\S+$/.test(trimmed);
-}
-
-function getDeadlineColor(deadline: string | null): string {
-  if (!deadline) return "text-charcoal";
-  try {
-    const d = new Date(deadline);
-    if (isNaN(d.getTime())) return "text-charcoal";
-    const now = new Date();
-    const diffDays = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return "text-stone";
-    if (diffDays <= 2) return "text-error";
-    if (diffDays <= 7) return "text-brand-orange";
-    return "text-charcoal";
-  } catch {
-    return "text-charcoal";
-  }
 }

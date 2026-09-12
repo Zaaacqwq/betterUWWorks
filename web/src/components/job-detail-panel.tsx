@@ -1,23 +1,30 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { MatchScore } from "@/lib/resume/types";
 import type { JobDetail } from "./types/job";
 import { JobDetailHeader } from "./job-detail-header";
 import { JobDetailOverview } from "./job-detail-overview";
 import { JobDetailRatings } from "./job-detail-ratings";
 import { JobDetailSkeleton } from "./job-detail-skeleton";
+import { MatchBreakdown } from "./match-breakdown";
+import { ApplicationAdvice } from "./application-advice";
+import { Kbd } from "./kbd";
+
+type Tab = "overview" | "match" | "ratings";
 
 interface JobDetailPanelProps {
   jobId: string | null;
   saved: boolean;
+  matchScore?: MatchScore;
   onToggleSave: (jobId: string) => void;
   onClose: () => void;
 }
 
-export function JobDetailPanel({ jobId, saved, onToggleSave, onClose }: JobDetailPanelProps) {
+export function JobDetailPanel({ jobId, saved, matchScore, onToggleSave, onClose }: JobDetailPanelProps) {
   const [job, setJob] = useState<JobDetail | null>(null);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState<"overview" | "ratings">("overview");
+  const [tab, setTab] = useState<Tab>("overview");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,7 +39,7 @@ export function JobDetailPanel({ jobId, saved, onToggleSave, onClose }: JobDetai
     fetch(`/api/jobs/${jobId}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => {
-        if (data.success) setJob(data.data);
+        setJob(data.success ? data.data : null);
       })
       .catch((e) => {
         if (e.name !== "AbortError") throw e;
@@ -44,17 +51,15 @@ export function JobDetailPanel({ jobId, saved, onToggleSave, onClose }: JobDetai
 
   useEffect(() => {
     scrollRef.current?.scrollTo(0, 0);
-  }, [jobId]);
+  }, [jobId, tab]);
 
   if (!jobId) {
     return (
-      <div className="hidden lg:flex flex-col items-center justify-center h-full text-center px-8">
-        <div className="w-16 h-16 bg-surface rounded-2xl flex items-center justify-center mb-4">
-          <svg className="w-8 h-8 text-stone" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-        </div>
-        <p className="text-stone text-sm">Select a job to view details</p>
+      <div className="hidden lg:flex flex-col items-center justify-center h-full text-center px-8 gap-2">
+        <p className="text-sm text-slate">Select a job to see the full posting</p>
+        <p className="text-xs text-stone">
+          <Kbd>j</Kbd> <Kbd>k</Kbd> move through the list · <Kbd>/</Kbd> search · <Kbd>esc</Kbd> close
+        </p>
       </div>
     );
   }
@@ -65,51 +70,62 @@ export function JobDetailPanel({ jobId, saved, onToggleSave, onClose }: JobDetai
     job.workTermRatings.hiresByFaculty != null
   );
 
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    ...(matchScore ? [{ id: "match" as const, label: "Match breakdown" }] : []),
+    ...(hasRatings ? [{ id: "ratings" as const, label: "Work term ratings" }] : []),
+  ];
+  const activeTab = tabs.some((t) => t.id === tab) ? tab : "overview";
+
   return (
     <div className="flex flex-col h-full">
       {loading ? (
         <JobDetailSkeleton />
       ) : job ? (
         <>
-          <JobDetailHeader job={job} saved={saved} onToggleSave={onToggleSave} onClose={onClose} />
+          <JobDetailHeader
+            job={job}
+            saved={saved}
+            matchScore={matchScore}
+            onToggleSave={onToggleSave}
+            onClose={onClose}
+          />
 
-          {hasRatings && (
-            <div className="flex gap-1 px-6 py-2.5 border-b border-hairline bg-canvas">
-              <TabButton active={tab === "overview"} onClick={() => setTab("overview")}>
-                Overview
-              </TabButton>
-              <TabButton active={tab === "ratings"} onClick={() => setTab("ratings")}>
-                Work Term Ratings
-              </TabButton>
-            </div>
-          )}
+          <div role="tablist" className="flex gap-5 sm:gap-6 px-5 sm:px-7 mt-4 border-b border-hairline-soft shrink-0 overflow-x-auto">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={activeTab === t.id}
+                onClick={() => setTab(t.id)}
+                className={`py-2.5 -mb-px border-b-2 text-[13px] font-medium whitespace-nowrap transition-colors ${
+                  activeTab === t.id
+                    ? "border-ink text-ink"
+                    : "border-transparent text-steel hover:text-charcoal"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-5">
-            {tab === "overview" ? (
-              <JobDetailOverview job={job} />
-            ) : (
-              <JobDetailRatings ratings={job.workTermRatings!} />
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 sm:px-7 py-5">
+            {activeTab === "overview" && <JobDetailOverview job={job} />}
+            {activeTab === "match" && matchScore && (
+              <div className="space-y-5">
+                <MatchBreakdown score={matchScore} />
+                <ApplicationAdvice job={job} />
+              </div>
             )}
+            {activeTab === "ratings" && <JobDetailRatings ratings={job.workTermRatings!} />}
           </div>
         </>
       ) : (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-stone text-sm">Job not found</p>
+        <div className="flex flex-col items-center justify-center h-full gap-1 text-center px-8">
+          <p className="text-sm text-slate">This job isn&apos;t in the database any more</p>
+          <p className="text-xs text-stone">It may have been cleared. Refresh the list to see what&apos;s there now.</p>
         </div>
       )}
     </div>
-  );
-}
-
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-        active ? "bg-ink-deep text-on-primary" : "text-steel hover:bg-surface"
-      }`}
-    >
-      {children}
-    </button>
   );
 }

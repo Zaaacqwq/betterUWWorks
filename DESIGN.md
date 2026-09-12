@@ -803,6 +803,28 @@ Notion's geometry is sober-editorial — `{rounded.md}` (8px) buttons distinguis
 - Pastel illustrations inside feature cards scale proportionally
 - Customer logo wall: wordmarks at consistent 60–80px height
 
+## Applying This to the betterUWWorks Web App
+
+Everything above describes Notion's marketing pages. The job browser is a working tool, so it takes the palette, type and geometry but none of the marketing devices: no navy hero band, no pastel feature cards, no decorative illustration. Tokens live in `web/src/app/globals.css`.
+
+### Shell
+- **Header**: white `{colors.canvas}` bar, 56px, bottom hairline. Logo tile + wordmark left; `Saved`, `Resume` and a `⋯` menu right. Destructive and rare actions (refresh, delete all jobs) live in the `⋯` menu, never on the bar itself.
+- **List pane**: `{colors.surface}` ground, 452px (480px at xl). Search, then filter chips, then a count/sort row, then cards.
+- **Detail pane**: `{colors.canvas}`. Header, metric strip, underline tabs (`segmented-tab`), scrolling body.
+
+### Color roles
+- **Purple** (`--primary`) marks selection and the user's own state: selected card, active filter chip (`--primary-tint` / `--primary-line`), saved bookmark, AI labels. It is never used for status.
+- **Status** uses `--good` / `--fair` / `--poor` (darker than the brand green/orange so 12px text passes contrast). Ratings: ≥ 8.5 good, ≥ 7 fair, else poor. Match: ≥ 80 good, ≥ 60 fair, else neutral. Deadlines within 2 days are `--poor`.
+- **Metadata** (employer, location, work mode, duration) is plain `{colors.slate}` text. Colored tags that encode nothing are not used.
+- **Charts** draw series from `--chart-1` … `--chart-8` in order. A baseline series (all co-op students) is `{colors.hairline-strong}`.
+
+### Components
+- **Job card**: 10px radius, hairline border. Above a hairline divider, who and where: title (2-line clamp, match ring right), then `building` employer and `pin` `city · mode · 4 mo` rows. Below it, the numbers each in a fixed place: pay first and largest (14px semibold ink, C$/hr where known, else the posting's own figure, else "Pay not stated" in stone) with the `calendar` deadline opposite (poor when urgent), then `★ rating (n)` and `people` openings — always shown, "1 opening" included. Selected: purple border plus a 3px `primary/12` ring. Scoring detail lives in the detail pane's Match breakdown tab, not on the card.
+- **Filter chip**: 28px pill. Inactive shows the filter name with a chevron; active shows the chosen values in the purple tint with an × to clear. Less common filters sit behind `+ More` and appear as chips once set.
+- **Metric strip**: one bordered `{colors.surface-soft}` band split into cells (Pay, Employer rating, Match, Closes): 11.5px label over a 15px semibold value with a quieter unit.
+- **Section headings** inside the detail pane are 13.5px semibold sentence case, not uppercase micro-labels.
+- **Keyboard**: `/` focuses search, `j`/`k` move through the list, `Esc` closes the job. Surface hints with a small `kbd` (hairline border, 2px bottom).
+
 ## Iteration Guide
 
 1. Focus on ONE component at a time

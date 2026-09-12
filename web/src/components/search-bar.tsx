@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { SearchIcon } from "./icons";
+import { Kbd } from "./kbd";
 
 interface SearchBarProps {
   value: string;
@@ -20,29 +22,36 @@ export function SearchBar({ value, onChange }: SearchBarProps) {
     [onChange]
   );
 
+  // "/" jumps to search from anywhere that isn't already a text field.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement;
+      if (target.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (document.querySelector("[aria-modal='true']")) return;
+      e.preventDefault();
+      inputRef.current?.focus();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
     <div className="relative">
+      <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone pointer-events-none" />
       <input
         ref={inputRef}
-        type="text"
+        type="search"
         defaultValue={value}
         onChange={handleInput}
-        placeholder="Search jobs by title, company, skills..."
-        className="w-full px-4 py-3 pl-10 border border-hairline rounded-lg bg-canvas text-charcoal text-sm placeholder:text-stone focus:outline-none focus:border-primary transition-colors"
+        onKeyDown={(e) => e.key === "Escape" && e.currentTarget.blur()}
+        placeholder="Search title, employer, skill"
+        aria-label="Search jobs"
+        className="peer w-full h-10 pl-9 pr-10 border border-hairline rounded-lg bg-canvas text-charcoal text-sm placeholder:text-stone focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12 transition-colors [&::-webkit-search-cancel-button]:hidden"
       />
-      <svg
-        className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-        />
-      </svg>
+      <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none peer-focus:hidden">
+        <Kbd>/</Kbd>
+      </span>
     </div>
   );
 }

@@ -1,105 +1,143 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import type { MatchScore } from "@/lib/resume/types";
 import type { JobDetail } from "./types/job";
+import { deadlineInfo, formatPay, matchTone, TONE_TEXT } from "@/lib/format";
+import { payDisplay } from "@/lib/job-details/present";
+import { BookmarkIcon, CloseIcon, CopyIcon } from "./icons";
 
 interface JobDetailHeaderProps {
   job: JobDetail;
   saved: boolean;
+  matchScore?: MatchScore;
   onToggleSave: (jobId: string) => void;
   onClose: () => void;
 }
 
-export function JobDetailHeader({ job, saved, onToggleSave, onClose }: JobDetailHeaderProps) {
-  const payText = formatPay(job.parsedHourlyMin, job.parsedHourlyMax);
-  const [copied, setCopied] = useState(false);
+export function JobDetailHeader({ job, saved, matchScore, onToggleSave, onClose }: JobDetailHeaderProps) {
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   const handleCopyId = useCallback(() => {
-    navigator.clipboard.writeText(job.jobId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    navigator.clipboard
+      .writeText(job.jobId)
+      .then(() => setCopyState("copied"))
+      .catch(() => setCopyState("failed"))
+      .finally(() => setTimeout(() => setCopyState("idle"), 1500));
   }, [job.jobId]);
 
   return (
-    <div className="px-6 pt-5 pb-4 border-b border-hairline">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-bold text-ink leading-snug">{job.title}</h2>
-          <p className="text-sm text-slate mt-0.5">
+    <div className="px-5 sm:px-7 pt-5 sm:pt-6 space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-[21px] font-semibold text-ink leading-tight tracking-tight text-balance">
+            {job.title}
+          </h2>
+          <p className="text-[13.5px] text-slate mt-1">
             {job.organization}
             {job.division ? ` — ${job.division}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => onToggleSave(job.jobId)}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+            aria-pressed={saved}
+            className={`h-8 px-3 flex items-center gap-1.5 rounded-lg border text-[12.5px] font-medium transition-colors ${
               saved
-                ? "text-primary hover:bg-surface"
-                : "text-stone hover:text-ink hover:bg-surface"
+                ? "border-primary-line bg-primary-tint text-primary-deep hover:bg-primary-tint/70"
+                : "border-hairline text-charcoal hover:bg-surface"
             }`}
-            aria-label={saved ? "Unsave job" : "Save job"}
           >
-            <svg className="w-5 h-5" fill={saved ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-            </svg>
+            <BookmarkIcon className="w-3.5 h-3.5" filled={saved} />
+            {saved ? "Saved" : "Save"}
+          </button>
+          <button
+            onClick={handleCopyId}
+            className="hidden sm:flex h-8 px-3 items-center gap-1.5 rounded-lg border border-hairline text-xs font-mono text-charcoal hover:bg-surface transition-colors"
+            title="Copy job ID"
+          >
+            <CopyIcon />
+            {copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : job.jobId}
           </button>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface text-stone hover:text-ink transition-colors"
-            aria-label="Close detail"
+            className="hidden lg:flex w-8 h-8 items-center justify-center rounded-lg border border-hairline text-slate hover:text-ink hover:bg-surface transition-colors"
+            aria-label="Close job"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <CloseIcon />
           </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 mt-3">
-        <button
-          onClick={handleCopyId}
-          className="text-[11px] font-mono font-medium text-slate bg-surface px-2 py-0.5 rounded hover:bg-surface-soft transition-colors"
-          title="Click to copy Job ID"
-        >
-          {copied ? "Copied!" : `ID: ${job.jobId}`}
-        </button>
-        {job.employerRating != null && (
-          <RatingBadge rating={job.employerRating} count={job.employerRatingCount} />
-        )}
-        {payText && (
-          <span className="text-xs font-bold text-brand-green bg-card-tint-mint px-2.5 py-1 rounded-full">
-            {payText}
-          </span>
-        )}
-      </div>
+      <MetricStrip job={job} matchScore={matchScore} />
     </div>
   );
 }
 
-function RatingBadge({ rating, count }: { rating: number; count: number | null }) {
-  const color =
-    rating >= 8.5
-      ? "bg-brand-green/15 text-brand-green"
-      : rating >= 7
-        ? "bg-brand-orange/15 text-brand-orange"
-        : "bg-error/15 text-error";
+function MetricStrip({ job, matchScore }: { job: JobDetail; matchScore?: MatchScore }) {
+  const deadline = deadlineInfo(job.deadlineAt);
+
+  const cells: { key: string; label: string; value: React.ReactNode; note?: string; valueClass?: string }[] = [
+    payCell(job),
+    job.employerRating != null
+      ? {
+          key: "rating",
+          label: "Employer rating",
+          value: job.employerRating.toFixed(1),
+          note: job.employerRatingCount != null ? `/10 · ${job.employerRatingCount} ratings` : "/10",
+        }
+      : { key: "rating", label: "Employer rating", value: "None yet", valueClass: "text-stone" },
+  ];
+  if (matchScore) {
+    cells.push({
+      key: "match",
+      label: "Match",
+      value: `${matchScore.score}%`,
+      valueClass: TONE_TEXT[matchTone(matchScore.score)],
+    });
+  }
+  cells.push(
+    deadline
+      ? {
+          key: "deadline",
+          label: "Closes",
+          value: deadline.date,
+          note: deadline.relative,
+          valueClass: deadline.urgent ? "text-poor" : deadline.closed ? "text-stone" : "",
+        }
+      : { key: "deadline", label: "Closes", value: job.deadline ?? "Not listed", valueClass: "text-stone" }
+  );
 
   return (
-    <span className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${color}`}>
-      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-      </svg>
-      {rating.toFixed(1)}
-      {count != null && <span className="font-normal opacity-70">({count})</span>}
-    </span>
+    <div
+      className={`grid grid-cols-2 ${cells.length === 4 ? "sm:grid-cols-4" : "sm:grid-cols-3"} border border-hairline-soft rounded-[10px] bg-surface-soft overflow-hidden`}
+    >
+      {cells.map((c, i) => (
+        <div
+          key={c.key}
+          className={`px-3.5 py-2.5 min-w-0 border-hairline-soft ${i % 2 === 1 ? "border-l" : ""} ${i >= 2 ? "border-t sm:border-t-0" : ""} ${
+            i > 0 ? "sm:border-l" : ""
+          }`}
+        >
+          <p className="text-[11.5px] text-steel">{c.label}</p>
+          <p className="text-[15px] font-semibold text-ink tabular-nums truncate">
+            <span className={c.valueClass}>{c.value}</span>
+            {c.note && <span className="text-xs font-normal text-steel ml-1">{c.note}</span>}
+          </p>
+        </div>
+      ))}
+    </div>
   );
 }
 
-function formatPay(min: number | null, max: number | null): string | null {
-  if (min == null) return null;
-  if (max != null && max !== min) {
-    return `$${Math.round(min)}–$${Math.round(max)}/hr`;
-  }
-  return `$${Math.round(min)}/hr`;
+// C$ an hour where the posting's pay comes to that, so every posting reads the
+// same; otherwise the posting's own figures, and failing those, why there are none.
+function payCell(job: JobDetail): { key: string; label: string; value: React.ReactNode; note?: string; valueClass?: string } {
+  const hourly = formatPay(job.parsedHourlyMin, job.parsedHourlyMax);
+  if (hourly) return { key: "pay", label: "Pay", value: hourly, note: "/hr" };
+
+  const display = payDisplay(job.aiDetails?.pay ?? null);
+  if (display && display.text !== "Not stated") return { key: "pay", label: "Pay", value: display.text };
+  const reason = display ? "Not stated" : job.aiDetails ? "Not listed" : "Reading…";
+  return { key: "pay", label: "Pay", value: reason, valueClass: "text-stone" };
 }

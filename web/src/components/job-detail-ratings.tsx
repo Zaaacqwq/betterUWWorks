@@ -79,7 +79,7 @@ export function JobDetailRatings({ ratings }: JobDetailRatingsProps) {
 function RatingsSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="text-xs font-semibold text-stone uppercase tracking-wider mb-3">{title}</h4>
+      <h4 className="text-[13.5px] font-semibold text-ink mb-3">{title}</h4>
       {children}
     </div>
   );
@@ -87,10 +87,7 @@ function RatingsSection({ title, children }: { title: string; children: React.Re
 
 // --- Pie Chart ---
 
-const PIE_HEX = [
-  "#5645d4", "#1aae39", "#dd5b00", "#0075de",
-  "#f5d75e", "#e03131", "#787671", "#e6e0f5",
-];
+const PIE_HEX = Array.from({ length: 8 }, (_, i) => `var(--chart-${i + 1})`);
 
 function PieChart({ data }: { data: Record<string, number> }) {
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
@@ -129,7 +126,9 @@ function PieChart({ data }: { data: Record<string, number> }) {
 
 // --- Overall Work Term Satisfaction (grouped bar chart) ---
 
-const BAR_COLORS = ["#7cb5ec", "#434348"];
+// Series arrive as division, organization, then (when present) the
+// all-students average, which stays grey so it reads as the baseline.
+const BAR_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--hairline-strong)"];
 const BAR_HEIGHT_PX = 120;
 
 function SatisfactionChart({ data }: { data: string[] }) {
@@ -238,7 +237,7 @@ function RatingByQuestionChart({ data }: { data: string[] }) {
                 const width = maxVal > 0 ? (val / maxVal) * 100 : 0;
                 return (
                   <div key={si} className="flex items-center gap-2">
-                    <div className="flex-1 h-4 bg-surface rounded overflow-hidden">
+                    <div className="flex-1 h-4 bg-surface-soft border border-hairline-soft rounded overflow-hidden">
                       <div
                         className="h-full rounded"
                         style={{
@@ -352,9 +351,9 @@ function HorizontalBars({ items }: { items: { program: string; hires: number }[]
       {items.map((p) => (
         <div key={p.program} className="flex items-center gap-3">
           <span className="text-xs text-slate w-44 text-right shrink-0 truncate">{p.program}</span>
-          <div className="flex-1 h-5 bg-surface rounded overflow-hidden">
+          <div className="flex-1 h-5 bg-surface-soft border border-hairline-soft rounded overflow-hidden">
             <div
-              className="h-full bg-link-blue/60 rounded"
+              className="h-full bg-primary/70 rounded"
               style={{ width: `${Math.min(100, (p.hires / maxHires) * 100)}%` }}
             />
           </div>

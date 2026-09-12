@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useResume } from "@/hooks/use-resume";
 import type { Capability, EvidenceType, UserInfo } from "@/lib/resume/types";
 import { normalizeSkill } from "@/lib/resume/skill-utils";
+import { SkillPick } from "./skill-pick";
 
 interface ResumeUploadProps {
   open: boolean;
@@ -91,18 +92,31 @@ export function ResumeUpload({ open, onClose }: ResumeUploadProps) {
     setError("");
   }, [clearResume]);
 
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(e: globalThis.KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30" onClick={onClose}>
       <div
-        className="bg-canvas rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="resume-dialog-title"
+        className="bg-canvas rounded-xl border border-hairline shadow-[var(--shadow-pop)] w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-hairline">
-          <h2 className="text-base font-bold text-ink">Resume</h2>
+        <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-hairline-soft">
+          <h2 id="resume-dialog-title" className="text-[15px] font-semibold text-ink">Resume</h2>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface text-stone hover:text-ink transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -137,7 +151,7 @@ export function ResumeUpload({ open, onClose }: ResumeUploadProps) {
                   onDragLeave={() => setDragOver(false)}
                   onDrop={handleDrop}
                   onClick={() => fileRef.current?.click()}
-                  className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+                  className={`border-2 border-dashed rounded-[10px] p-8 text-center cursor-pointer transition-colors ${
                     dragOver ? "border-primary bg-primary/5" : "border-hairline hover:border-primary/40"
                   }`}
                 >
@@ -166,12 +180,12 @@ export function ResumeUpload({ open, onClose }: ResumeUploadProps) {
                     onChange={(e) => setTextInput(e.target.value)}
                     placeholder="Paste your resume text here..."
                     rows={10}
-                    className="w-full px-3 py-2.5 border border-hairline rounded-xl bg-canvas text-sm text-charcoal resize-none focus:outline-none focus:border-primary"
+                    className="w-full px-3 py-2.5 border border-hairline rounded-lg bg-canvas text-sm text-charcoal resize-none focus:outline-none focus:border-primary"
                   />
                   <button
                     onClick={handleTextSubmit}
                     disabled={textInput.trim().length < 50}
-                    className="w-full py-2.5 bg-primary text-on-primary text-sm font-semibold rounded-xl hover:bg-primary-deep disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="w-full py-2.5 bg-primary text-on-primary text-sm font-semibold rounded-lg hover:bg-primary-pressed disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     {extracting ? "Analyzing..." : "Submit"}
                   </button>
@@ -224,7 +238,7 @@ function ProfileView({
           <p className="text-sm font-semibold text-ink">{meta?.fileName ?? "Pasted text"}</p>
           <p className="text-xs text-stone mt-0.5">{profile.summary}</p>
         </div>
-        <span className="text-[11px] font-bold text-brand-green bg-card-tint-mint px-2 py-0.5 rounded-full shrink-0">
+        <span className="text-[11px] font-semibold text-good bg-good/10 px-2 py-0.5 rounded-full shrink-0">
           Analyzed
         </span>
       </div>
@@ -315,6 +329,8 @@ function UserInfoForm({
   const [gpa, setGpa] = useState(userInfo?.gpa?.toString() ?? "");
   const [program, setProgram] = useState(userInfo?.program ?? "");
   const [yearLevel, setYearLevel] = useState(userInfo?.yearLevel?.toString() ?? "");
+  const [citizen, setCitizen] = useState(toAnswer(userInfo?.citizenOrPermanentResident));
+  const [licence, setLicence] = useState(toAnswer(userInfo?.hasDriversLicence));
 
   const handleSave = () => {
     onSave({
@@ -322,6 +338,8 @@ function UserInfoForm({
       gpa: gpa ? parseFloat(gpa) : null,
       program: program.trim(),
       yearLevel: yearLevel ? parseInt(yearLevel, 10) : null,
+      citizenOrPermanentResident: fromAnswer(citizen),
+      hasDriversLicence: fromAnswer(licence),
     });
   };
 
@@ -329,14 +347,16 @@ function UserInfoForm({
     coopTerm !== (userInfo?.coopTermNumber ?? 1) ||
     gpa !== (userInfo?.gpa?.toString() ?? "") ||
     program !== (userInfo?.program ?? "") ||
-    yearLevel !== (userInfo?.yearLevel?.toString() ?? "");
+    yearLevel !== (userInfo?.yearLevel?.toString() ?? "") ||
+    citizen !== toAnswer(userInfo?.citizenOrPermanentResident) ||
+    licence !== toAnswer(userInfo?.hasDriversLicence);
 
   return (
     <div className="space-y-3 pt-3 border-t border-hairline">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-slate">Your Details</p>
         {userInfo && !hasChanges && (
-          <span className="text-[10px] font-medium text-brand-green bg-card-tint-mint px-1.5 py-0.5 rounded-full">
+          <span className="text-[10px] font-semibold text-good bg-good/10 px-1.5 py-0.5 rounded-full">
             Saved
           </span>
         )}
@@ -390,11 +410,16 @@ function UserInfoForm({
             className="w-full px-2.5 py-1.5 border border-hairline rounded-lg bg-canvas text-sm text-charcoal focus:outline-none focus:border-primary"
           />
         </div>
+        <AnswerField label="Canadian citizen or PR" value={citizen} onChange={setCitizen} />
+        <AnswerField label="Driver's licence" value={licence} onChange={setLicence} />
       </div>
+      <p className="text-[11px] text-stone">
+        Only used here, to warn you about postings you can&apos;t take. Left unset, those requirements are still shown on each posting.
+      </p>
       <button
         onClick={handleSave}
         disabled={!hasChanges && userInfo != null}
-        className="w-full py-2 text-xs font-semibold text-on-primary bg-primary rounded-xl hover:bg-primary-deep disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="w-full py-2 text-xs font-semibold text-on-primary bg-primary rounded-lg hover:bg-primary-pressed disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         {userInfo ? "Update Details" : "Save Details"}
       </button>
@@ -437,14 +462,13 @@ function CapabilitiesView({ capabilities }: { capabilities: Capability[] }) {
             <p className="text-[10px] text-stone mb-1">{label} ({caps.length})</p>
             <div className="flex flex-wrap gap-1">
               {caps.map((c) => (
-                <span
+                <SkillPick
                   key={`${c.name}-${c.evidenceSource}`}
-                  className={`text-[11px] px-2 py-0.5 rounded-full font-medium cursor-default ${EVIDENCE_STYLE[c.evidenceType]}`}
-                  style={{ opacity: 0.5 + c.confidence * 0.5 }}
-                  title={`${c.evidenceSource}\n${c.reasoning}\nConfidence: ${Math.round(c.confidence * 100)}%`}
-                >
-                  {c.name}
-                </span>
+                  name={c.name}
+                  showCheck={false}
+                  className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${EVIDENCE_STYLE[c.evidenceType]}`}
+                  title={`${c.evidenceSource}\n${c.reasoning}\nConfidence: ${Math.round(c.confidence * 100)}% — click to say how well you know it`}
+                />
               ))}
             </div>
           </div>
@@ -490,10 +514,6 @@ function ExtraSkillsEditor({
     }
   };
 
-  const removeSkill = (idx: number) => {
-    onChange(skills.filter((_, i) => i !== idx));
-  };
-
   return (
     <div className="space-y-2 pt-3 border-t border-hairline">
       <p className="text-xs font-semibold text-slate">Additional Skills</p>
@@ -510,7 +530,7 @@ function ExtraSkillsEditor({
         <button
           onClick={addSkill}
           disabled={!input.trim()}
-          className="px-3 py-1.5 text-xs font-semibold text-on-primary bg-primary rounded-lg hover:bg-primary-deep disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-3 py-1.5 text-xs font-semibold text-on-primary bg-primary rounded-lg hover:bg-primary-pressed disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Add
         </button>
@@ -518,23 +538,17 @@ function ExtraSkillsEditor({
       {skills.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {skills.map((s, i) => (
-            <span
+            <SkillPick
               key={`${s}-${i}`}
-              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium bg-brand-orange/10 text-brand-orange"
-            >
-              {s}
-              <button
-                onClick={() => removeSkill(i)}
-                className="w-3.5 h-3.5 flex items-center justify-center rounded-full hover:bg-brand-orange/20 transition-colors"
-              >
-                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </span>
+              name={s}
+              showCheck={false}
+              className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-brand-orange/10 text-brand-orange"
+              title="Click to change how well you know it, or remove it"
+            />
           ))}
         </div>
       )}
+      <p className="text-[10px] text-stone">Click any skill — here or on a posting — to say how well you know it. Skills you know only a little count for half in matching.</p>
     </div>
   );
 }
@@ -549,5 +563,33 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
     >
       {children}
     </button>
+  );
+}
+
+// A yes/no the student may leave unanswered, which is different from "no".
+type Answer = "" | "yes" | "no";
+
+function toAnswer(value: boolean | null | undefined): Answer {
+  return value === true ? "yes" : value === false ? "no" : "";
+}
+
+function fromAnswer(answer: Answer): boolean | null {
+  return answer === "yes" ? true : answer === "no" ? false : null;
+}
+
+function AnswerField({ label, value, onChange }: { label: string; value: Answer; onChange: (v: Answer) => void }) {
+  return (
+    <div>
+      <label className="text-[11px] text-stone block mb-1">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as Answer)}
+        className="w-full px-2.5 py-1.5 border border-hairline rounded-lg bg-canvas text-sm text-charcoal focus:outline-none focus:border-primary"
+      >
+        <option value="">Not set</option>
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
   );
 }
