@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
   --primary: #5645d4;
   --primary-pressed: #4534b3;
   --primary-deep: #3a2a99;
@@ -55,6 +56,57 @@
 
   /* Menus and popovers floating over the page. */
   --shadow-pop: 0 16px 48px -8px rgba(15, 15, 15, 0.16);
+}
+
+/* Dark theme: the same roles, re-lit. Set by the script in app/layout.tsx from
+   the saved choice, or from the system when the choice is "system". Grounds
+   step up in lightness as they come forward (list ground → card → popover),
+   and the accent and status colors are lifted so small text still reads. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --primary: #8b7cf6;
+  --primary-pressed: #7a6aee;
+  --primary-deep: #c2b9ff;
+  --on-primary: #ffffff;
+  --link-blue: #5aa9ff;
+  --brand-green: #3ccf5e;
+  --brand-orange: #f28c45;
+  --brand-orange-deep: #ffc08f;
+  --brand-yellow: #e6c95a;
+  --card-tint-peach: #3a2a1e;
+  --card-tint-mint: #1d3326;
+  --card-tint-lavender: #2a2644;
+  --card-tint-yellow-bold: #4a4020;
+  --canvas: #1e1e1e;
+  --surface: #161616;
+  --surface-soft: #1a1a1a;
+  --hairline: #323232;
+  --hairline-soft: #2a2a2a;
+  --hairline-strong: #4a4a4a;
+  --ink-deep: #ffffff;
+  --ink: #ededeb;
+  --charcoal: #d6d5d0;
+  --slate: #aaa8a1;
+  --steel: #918f88;
+  --stone: #77756f;
+  --muted: #5e5d59;
+  --success: #3ccf5e;
+  --warning: #f28c45;
+  --error: #f07070;
+  --primary-tint: #28243f;
+  --primary-line: #4a4287;
+  --good: #52c983;
+  --fair: #eaa645;
+  --poor: #f07070;
+  --chart-1: #8b7cf6;
+  --chart-2: #3cc0bb;
+  --chart-3: #f28c45;
+  --chart-4: #5aa9ff;
+  --chart-5: #d85c9f;
+  --chart-6: #3ccf5e;
+  --chart-7: #e0bb45;
+  --chart-8: #77756f;
+  --shadow-pop: 0 16px 48px -8px rgba(0, 0, 0, 0.6);
 }
 
 @theme inline {

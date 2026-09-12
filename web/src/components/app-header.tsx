@@ -2,6 +2,8 @@
 
 import { usePopover } from "@/hooks/use-popover";
 import { BookmarkIcon, DocumentIcon, MoreIcon, RefreshIcon, TrashIcon } from "./icons";
+import { useTheme } from "@/hooks/use-theme";
+import type { ThemeChoice } from "@/lib/theme";
 
 export type ClearState = "idle" | "confirming" | "clearing";
 
@@ -115,6 +117,8 @@ function HeaderMenu({
             Refresh jobs
           </button>
 
+          <ThemeSwitch />
+
           <div className="my-1 border-t border-hairline-soft" />
 
           <button
@@ -144,6 +148,36 @@ function HeaderMenu({
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+const THEME_OPTIONS: { value: ThemeChoice; label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
+
+function ThemeSwitch() {
+  const { choice, setChoice } = useTheme();
+  return (
+    <div className="flex items-center justify-between gap-3 px-2.5 py-2">
+      <span className="text-[13px] text-charcoal">Theme</span>
+      <div role="radiogroup" aria-label="Theme" className="flex p-0.5 rounded-md bg-surface border border-hairline-soft">
+        {THEME_OPTIONS.map((o) => (
+          <button
+            key={o.value}
+            role="radio"
+            aria-checked={choice === o.value}
+            onClick={() => setChoice(o.value)}
+            className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+              choice === o.value ? "bg-canvas text-ink shadow-sm" : "text-steel hover:text-charcoal"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
