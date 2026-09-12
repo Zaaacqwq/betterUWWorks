@@ -171,38 +171,45 @@ Return ONLY this JSON: {"pay": {"quote": ..., "currency": ..., "period": ..., "m
 ${postingText}`;
 }
 
-export const MATCH_ANALYSIS_SYSTEM = `You are a career advisor analyzing job fit for University of Waterloo co-op students. Be specific and actionable.`;
+export const APPLICATION_ADVICE_SYSTEM = `You help a University of Waterloo co-op student prepare an application for one job. You use only the facts you are given and never invent experience, skills or requirements. Output ONLY valid JSON, nothing else.`;
 
-export function matchAnalysisPrompt(
-  profile: { skills: { name: string; proficiency: string }[]; education: { program: string; degree: string }[]; experience: { title: string; company: string; type: string }[]; coopTermCount: number; summary: string },
-  job: { title: string; organization: string; requiredSkills: string | null; jobSummary: string | null; jobResponsibilities: string | null; level: string | null; location: string | null }
-): string {
-  return `Analyze how well this candidate matches this job. Output format:
+// The match itself is worked out by code (lib/resume/match-engine.ts); the
+// model only advises on it, and every piece of advice has to point back at
+// these facts to be kept (lib/match-advice/verify.ts).
+export function applicationAdvicePrompt(input: {
+  title: string;
+  organization: string;
+  summary: string | null;
+  matched: { skill: string; evidence: string; familiar: boolean }[];
+  missing: string[];
+  experiences: { id: number; label: string; skills: string[] }[];
+}): string {
+  const matched = input.matched.length
+    ? input.matched
+        .map((m) => `- ${m.skill} (on the resume: ${m.evidence}${m.familiar ? "; the student has only used it a little" : ""})`)
+        .join("\n")
+    : "(none)";
+  const missing = input.missing.length ? input.missing.map((s) => `- ${s}`).join("\n") : "(none)";
+  const experiences = input.experiences.length
+    ? input.experiences
+        .map((e) => `${e.id}. ${e.label}${e.skills.length ? ` — ${e.skills.join(", ")}` : ""}`)
+        .join("\n")
+    : "(none listed)";
 
-**Score**: X/100
+  return `JOB: ${input.title} at ${input.organization}
+${input.summary ? `What the job is: ${input.summary}\n` : ""}
+Skills the posting asks for that the student has:
+${matched}
 
-**Strengths**:
-- (2-3 specific strengths based on skill/experience overlap)
+Skills the posting asks for that the student's resume doesn't show:
+${missing}
 
-**Gaps**:
-- (1-2 specific gaps or missing qualifications)
+The student's experience, numbered:
+${experiences}
 
-**Tips**:
-- (1-2 actionable suggestions for the application)
+Advise the student on this application:
+- "highlights": the 1–3 experiences most worth leading with for this job. "experience" is its number from the list above; "skills" are the skills it shows, taken ONLY from the "has" list and never one the student has only used a little; "why" is one sentence on why it matters for this job.
+- "gaps": the 1–3 missing skills that matter most for this job. "skill" is taken ONLY from the "doesn't show" list; "suggestion" is one honest sentence — point to related experience from the list if there is some, otherwise suggest learning the basics or saying they're keen to learn. Never suggest claiming a skill they don't have.
 
-Be concise and specific. Reference actual skills and requirements.
-
----
-
-CANDIDATE:
-${JSON.stringify(profile, null, 2)}
-
-JOB:
-Title: ${job.title}
-Company: ${job.organization}
-Level: ${job.level ?? "Not specified"}
-Location: ${job.location ?? "Not specified"}
-${job.requiredSkills ? `Required Skills: ${job.requiredSkills}` : ""}
-${job.jobSummary ? `Summary: ${job.jobSummary}` : ""}
-${job.jobResponsibilities ? `Responsibilities: ${job.jobResponsibilities}` : ""}`;
+Return ONLY this JSON: {"highlights": [{"experience": 1, "skills": ["..."], "why": "..."}], "gaps": [{"skill": "...", "suggestion": "..."}]}`;
 }
