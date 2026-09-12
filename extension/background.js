@@ -470,7 +470,7 @@ async function scrapeDetailsInner(tabId) {
       if (hasFields(jobDetails[row.jobId]) || alreadySynced.has(row.jobId)) continue;
 
       if (storageError) {
-        return giveUp(`extension storage refused the write (${storageError}) — press Sync to Web, then Reset`);
+        return giveUp(`extension storage refused the write (${storageError}) — press Sync to web app, then Reset`);
       }
 
       // Progress counts postings captured, not rows walked past. Walking the

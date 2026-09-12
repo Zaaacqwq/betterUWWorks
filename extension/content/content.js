@@ -475,7 +475,7 @@
     keepSessionAlive();
 
     if (isLoggedOut() && msg.action !== "ping") {
-      sendResponse({ error: true, loggedOut: true, message: "Signed out of WaterlooWorks — sign in again, then press Scrape Details" });
+      sendResponse({ error: true, loggedOut: true, message: "Signed out of WaterlooWorks — sign in again, then press Scrape details" });
       return false;
     }
 

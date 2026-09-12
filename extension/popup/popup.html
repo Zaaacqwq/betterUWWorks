@@ -6,42 +6,31 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* === DESIGN.md Tokens === */
+    /* Same tokens as web/src/app/globals.css; see DESIGN.md, "Applying This
+       to the betterUWWorks Web App". */
     :root {
       --primary: #5645d4;
       --primary-pressed: #4534b3;
       --primary-deep: #3a2a99;
+      --primary-tint: #efedfb;
+      --primary-line: #d6d0f6;
       --on-primary: #ffffff;
-      --brand-navy: #0a1530;
-      --link-blue: #0075de;
-      --brand-green: #1aae39;
-      --brand-orange: #dd5b00;
-      --brand-orange-deep: #793400;
-      --brand-yellow: #f5d75e;
-      --card-tint-peach: #ffe8d4;
-      --card-tint-mint: #d9f3e1;
-      --card-tint-lavender: #e6e0f5;
-      --card-tint-yellow-bold: #f9e79f;
       --canvas: #ffffff;
       --surface: #f6f5f4;
       --surface-soft: #fafaf9;
       --hairline: #e5e3df;
       --hairline-soft: #ede9e4;
       --hairline-strong: #c8c4be;
-      --ink-deep: #000000;
       --ink: #1a1a1a;
       --charcoal: #37352f;
       --slate: #5d5b54;
       --steel: #787671;
       --stone: #a4a097;
       --muted: #bbb8b1;
-      --success: #1aae39;
-      --warning: #dd5b00;
-      --error: #e03131;
-      --rounded-sm: 6px;
-      --rounded-md: 8px;
-      --rounded-lg: 12px;
-      --rounded-full: 9999px;
+      --good: #1a8f45;
+      --fair: #c26a00;
+      --poor: #c92a2a;
+      --error-tint: #fdf0f0;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -51,392 +40,269 @@
       font-family: Inter, -apple-system, system-ui, 'Segoe UI', Helvetica, sans-serif;
       background: var(--canvas);
       color: var(--charcoal);
-      font-size: 14px;
-      line-height: 1.5;
+      font-size: 13px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* Header — brand-navy hero band */
+    button, input { font: inherit; }
+    :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+    /* Header */
     .header {
-      padding: 20px 24px;
-      background: var(--brand-navy);
+      height: 52px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--hairline);
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 12px;
     }
-    .header-icon {
-      width: 36px; height: 36px;
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .logo {
+      width: 26px; height: 26px;
+      border-radius: 7px;
       background: var(--primary);
-      border-radius: var(--rounded-md);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
+      color: var(--on-primary);
+      display: grid;
+      place-items: center;
+      font-size: 14px;
       font-weight: 700;
-      color: var(--on-primary);
       flex-shrink: 0;
     }
-    .header h1 {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--on-primary);
-      letter-spacing: -0.3px;
-    }
-    .header p {
-      font-size: 12px;
-      color: var(--stone);
-      margin-top: 1px;
-      font-weight: 400;
-    }
-
-    /* Content */
-    .content {
-      padding: 20px 24px;
-    }
-
-    /* Steps — pill tabs */
-    .steps {
-      display: flex;
+    .brand h1 { font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+    .brand p { font-size: 11.5px; color: var(--steel); margin-top: -1px; }
+    .web-link {
+      height: 28px;
+      padding: 0 10px;
+      display: inline-flex;
       align-items: center;
-      gap: 6px;
-      margin-bottom: 16px;
-    }
-    .step {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 12px;
-      border-radius: var(--rounded-full);
-      border: 1px solid var(--hairline);
-      background: transparent;
-      transition: all 0.15s;
-    }
-    .step-num {
-      width: 18px; height: 18px;
-      border-radius: 50%;
-      background: var(--surface);
-      color: var(--steel);
-      font-size: 10px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-    .step-text {
-      font-size: 12px;
+      gap: 5px;
+      border-radius: 8px;
+      font-size: 12.5px;
       font-weight: 500;
+      color: var(--charcoal);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .web-link:hover { background: var(--surface); }
+
+    .content { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+    /* Stepper */
+    .steps { display: flex; align-items: center; gap: 8px; list-style: none; }
+    .step { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--steel); white-space: nowrap; }
+    .step-num {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      border: 1px solid var(--hairline-strong);
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      font-weight: 600;
       color: var(--steel);
-    }
-    .step.active {
-      background: var(--ink-deep);
-      border-color: var(--ink-deep);
-    }
-    .step.active .step-num {
-      background: var(--primary);
-      color: var(--on-primary);
-    }
-    .step.active .step-text { color: var(--on-primary); }
-    .step.done {
-      background: var(--card-tint-mint);
-      border-color: var(--card-tint-mint);
-    }
-    .step.done .step-num {
-      background: var(--brand-green);
-      color: var(--on-primary);
-    }
-    .step.done .step-text { color: var(--charcoal); }
-    .step-arrow {
-      color: var(--muted);
-      font-size: 12px;
       flex-shrink: 0;
     }
+    .step-line { flex: 1; height: 1px; background: var(--hairline); min-width: 12px; }
+    .step.active { color: var(--ink); }
+    .step.active .step-num { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+    .step.done { color: var(--charcoal); }
+    .step.done .step-num { background: var(--good); border-color: var(--good); color: var(--on-primary); font-size: 0; }
+    .step.done .step-num::after {
+      content: "";
+      width: 8px; height: 4px;
+      border-left: 1.6px solid currentColor;
+      border-bottom: 1.6px solid currentColor;
+      transform: translateY(-1px) rotate(-45deg);
+    }
 
-    /* Status card */
-    .status-card {
-      background: var(--surface);
-      border: 1px solid var(--hairline);
-      border-radius: var(--rounded-lg);
-      padding: 12px 16px;
-      margin-bottom: 16px;
+    /* Status */
+    .status {
       display: flex;
       align-items: flex-start;
       gap: 10px;
-      min-height: 48px;
+      padding: 10px 12px;
+      background: var(--surface);
+      border-radius: 10px;
+      min-height: 40px;
     }
+    .status.error { background: var(--error-tint); }
     .status-dot {
-      width: 8px; height: 8px;
+      width: 7px; height: 7px;
       border-radius: 50%;
       background: var(--stone);
       flex-shrink: 0;
-      margin-top: 5px;
+      margin-top: 6px;
     }
     .status-dot.active { background: var(--primary); animation: pulse 1.5s infinite; }
-    .status-dot.success { background: var(--success); }
-    .status-dot.error { background: var(--error); }
-    .status-dot.paused { background: var(--warning); }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-    .status-text {
-      font-size: 13px;
-      color: var(--slate);
-      line-height: 1.4;
-      word-break: break-word;
-    }
+    .status-dot.success { background: var(--good); }
+    .status-dot.error { background: var(--poor); }
+    .status-dot.paused { background: var(--fair); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    @media (prefers-reduced-motion: reduce) { .status-dot.active { animation: none; } }
+    .status-text { font-size: 13px; color: var(--charcoal); word-break: break-word; }
+    .status.error .status-text { color: var(--poor); }
 
-    /* Stats */
+    /* Stats — one strip, like the web app's metric strip */
     .stats {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 16px;
+      grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--hairline-soft);
+      border-radius: 10px;
+      background: var(--surface-soft);
     }
-    .stat {
-      background: var(--canvas);
-      border: 1px solid var(--hairline);
-      border-radius: var(--rounded-lg);
-      padding: 12px 8px;
-      text-align: center;
-    }
+    .stat { padding: 9px 12px; min-width: 0; }
+    .stat + .stat { border-left: 1px solid var(--hairline-soft); }
+    .stat-label { font-size: 11.5px; color: var(--steel); }
     .stat-value {
-      font-size: 24px;
-      font-weight: 700;
-      color: var(--ink);
-      line-height: 1;
-    }
-    .stat-label {
-      font-size: 11px;
+      font-size: 18px;
       font-weight: 600;
-      color: var(--stone);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-top: 4px;
-    }
-    .stat-label.purple { color: var(--primary); }
-    .stat-label.green { color: var(--brand-green); }
-    .stat-label.orange { color: var(--brand-orange); }
-
-    /* Progress */
-    .progress-section {
-      margin-bottom: 16px;
-      display: none;
-    }
-    .progress-section.visible { display: block; }
-    .progress-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    .progress-label {
-      font-size: 12px;
-      color: var(--slate);
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 280px;
-      font-weight: 500;
     }
-    .progress-pct {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--primary);
-    }
-    .progress-track {
-      height: 6px;
-      background: var(--hairline);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .progress-fill {
-      height: 100%;
-      background: var(--primary);
-      border-radius: 3px;
-      transition: width 0.4s ease;
-      width: 0%;
-    }
-    .progress-fill.paused { background: var(--warning); }
-    .progress-eta {
-      font-size: 11px;
-      color: var(--stone);
-      margin-top: 6px;
-      text-align: right;
-      font-weight: 500;
-    }
+    .stat-value small { font-size: 12px; font-weight: 400; color: var(--steel); margin-left: 2px; }
+    .stat-value.bad { color: var(--poor); }
+
+    /* Progress */
+    .progress { display: none; }
+    .progress.visible { display: block; }
+    .progress-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+    .progress-label { font-size: 12px; color: var(--slate); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .progress-pct { font-size: 12.5px; font-weight: 600; color: var(--primary-deep); font-variant-numeric: tabular-nums; }
+    .progress-track { height: 6px; background: var(--hairline-soft); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0%; background: var(--primary); border-radius: 3px; transition: width 0.4s ease; }
+    .progress-fill.paused { background: var(--fair); }
+    .progress-eta { font-size: 11.5px; color: var(--steel); margin-top: 5px; text-align: right; }
 
     /* Buttons */
-    .btn-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .btn-row {
-      display: flex;
-      gap: 8px;
-    }
-    button {
-      flex: 1;
-      padding: 10px 18px;
-      border: none;
-      border-radius: var(--rounded-md);
-      font-family: Inter, -apple-system, system-ui, sans-serif;
-      font-size: 14px;
+    .actions { display: flex; flex-direction: column; gap: 8px; }
+    .row { display: flex; gap: 8px; }
+    .row .btn { flex: 1; }
+    .btn {
+      height: 36px;
+      padding: 0 14px;
+      border-radius: 8px;
+      border: 1px solid var(--hairline-strong);
+      background: var(--canvas);
+      color: var(--ink);
+      font-size: 13px;
       font-weight: 500;
-      line-height: 1.3;
       cursor: pointer;
-      transition: all 0.15s;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
+      transition: background-color 0.15s, border-color 0.15s, color 0.15s;
     }
-    button:disabled {
-      background: var(--hairline) !important;
-      color: var(--muted) !important;
-      border-color: var(--hairline) !important;
-      cursor: not-allowed;
-    }
-    button:hover:not(:disabled) { filter: brightness(0.95); }
-    button:active:not(:disabled) { filter: brightness(0.9); }
+    .btn:hover:not(:disabled) { background: var(--surface); }
+    .btn:disabled { color: var(--muted); border-color: var(--hairline); background: var(--canvas); cursor: not-allowed; }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+    .btn.primary:hover:not(:disabled) { background: var(--primary-pressed); border-color: var(--primary-pressed); }
+    .btn.primary:active:not(:disabled) { background: var(--primary-deep); }
+    .btn.primary:disabled { background: var(--hairline); border-color: var(--hairline); color: var(--muted); }
+    .btn.danger { color: var(--poor); }
+    .btn.danger:hover:not(:disabled) { background: var(--error-tint); }
 
-    .btn-primary {
-      background: var(--primary);
-      color: var(--on-primary);
-    }
-    .btn-primary:hover:not(:disabled) { background: var(--primary-pressed); filter: none; }
-    .btn-primary:active:not(:disabled) { background: var(--primary-deep); filter: none; }
-
-    .btn-dark {
-      background: var(--ink-deep);
-      color: var(--on-primary);
-    }
-    .btn-warning {
-      background: var(--card-tint-peach);
-      color: var(--brand-orange-deep);
-      border: 1px solid var(--card-tint-peach);
-    }
-    .btn-danger {
-      background: var(--canvas);
-      color: var(--error);
-      border: 1px solid var(--hairline-strong);
-    }
-    .btn-secondary {
-      background: transparent;
-      color: var(--ink);
-      border: 1px solid var(--hairline-strong);
-    }
-    .btn-secondary:hover:not(:disabled) {
-      background: var(--surface);
-      filter: none;
-    }
-    .btn-success {
-      background: var(--card-tint-mint);
-      color: var(--charcoal);
-      border: 1px solid var(--card-tint-mint);
-    }
-
-    /* Settings */
-    .settings-section {
-      margin-top: 16px;
-      border-top: 1px solid var(--hairline);
-      padding-top: 12px;
-    }
-    .settings-toggle {
-      background: none;
+    /* Footer: settings and the one destructive action */
+    .footer { border-top: 1px solid var(--hairline-soft); padding: 8px 16px 12px; }
+    .footer-row { display: flex; justify-content: space-between; align-items: center; }
+    .link-btn {
+      height: 28px;
+      padding: 0 6px;
+      margin: 0 -6px;
       border: none;
-      color: var(--steel);
-      font-size: 12px;
+      background: none;
+      border-radius: 6px;
+      font-size: 12.5px;
       font-weight: 500;
+      color: var(--steel);
       cursor: pointer;
-      padding: 4px 0;
-      flex: unset;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
     }
-    .settings-toggle:hover { color: var(--ink); }
-    .settings-panel {
-      margin-top: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .settings-label {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--stone);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .settings-input {
-      padding: 8px 12px;
+    .link-btn:hover:not(:disabled) { color: var(--ink); }
+    .link-btn:disabled { color: var(--muted); cursor: not-allowed; }
+    .link-btn .chev { transition: transform 0.15s; }
+    .link-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+    .link-btn.reset { color: var(--poor); }
+    .link-btn.reset:hover:not(:disabled) { color: var(--poor); background: var(--error-tint); }
+    .link-btn.reset.confirming { background: var(--poor); color: var(--on-primary); margin: 0; padding: 0 10px; }
+    .link-btn.reset:disabled { color: var(--muted); }
+
+    .settings { margin-top: 8px; display: flex; flex-direction: column; gap: 10px; }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 12px; font-weight: 600; color: var(--charcoal); }
+    .field .hint { font-size: 11.5px; color: var(--steel); }
+    .input {
+      height: 34px;
+      padding: 0 10px;
       border: 1px solid var(--hairline);
-      border-radius: var(--rounded-md);
-      font-family: Inter, sans-serif;
+      border-radius: 8px;
       font-size: 13px;
       color: var(--ink);
       background: var(--canvas);
       outline: none;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .settings-input:focus {
-      border-color: var(--primary);
-    }
+    .input::placeholder { color: var(--stone); }
+    .input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(86, 69, 212, 0.12); }
+    .settings-actions { display: flex; align-items: center; gap: 10px; }
+    .settings-actions .btn { flex: 0 0 auto; height: 32px; }
+    .saved-note { font-size: 12px; color: var(--good); }
 
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="header-icon">B</div>
-    <div>
-      <h1>betterUWWorks</h1>
-      <p>WaterlooWorks Job Scraper</p>
-    </div>
-  </div>
-
-  <div class="content">
-    <!-- Steps (pill-tab style) -->
-    <div class="steps">
-      <div class="step" id="step1">
-        <div class="step-num">1</div>
-        <div class="step-text">Scrape</div>
-      </div>
-      <div class="step-arrow">&rsaquo;</div>
-      <div class="step" id="step2">
-        <div class="step-num">2</div>
-        <div class="step-text">Details</div>
-      </div>
-      <div class="step-arrow">&rsaquo;</div>
-      <div class="step" id="step3">
-        <div class="step-num">3</div>
-        <div class="step-text">Export</div>
+  <header class="header">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">b</div>
+      <div>
+        <h1>betterUWWorks</h1>
+        <p>Job scraper for WaterlooWorks</p>
       </div>
     </div>
+    <a class="web-link hidden" id="linkWebApp" target="_blank" rel="noopener">
+      Open web app
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>
+    </a>
+  </header>
 
-    <!-- Status -->
-    <div class="status-card">
+  <main class="content">
+    <ol class="steps" aria-label="Progress">
+      <li class="step" id="step1"><span class="step-num">1</span>Job list</li>
+      <li class="step-line" aria-hidden="true"></li>
+      <li class="step" id="step2"><span class="step-num">2</span>Details</li>
+      <li class="step-line" aria-hidden="true"></li>
+      <li class="step" id="step3"><span class="step-num">3</span>Sync</li>
+    </ol>
+
+    <div class="status" id="statusBox" role="status" aria-live="polite">
       <div class="status-dot" id="statusDot"></div>
-      <div class="status-text" id="statusText">Navigate to WaterlooWorks job listings to begin.</div>
+      <div class="status-text" id="statusText">Open WaterlooWorks job listings to begin.</div>
     </div>
 
-    <!-- Stats -->
     <div class="stats">
       <div class="stat">
+        <div class="stat-label">Jobs</div>
         <div class="stat-value" id="statJobs">0</div>
-        <div class="stat-label purple">Jobs</div>
       </div>
       <div class="stat">
+        <div class="stat-label">Details</div>
         <div class="stat-value" id="statDetails">0</div>
-        <div class="stat-label green">Details</div>
       </div>
       <div class="stat">
+        <div class="stat-label">Errors</div>
         <div class="stat-value" id="statErrors">0</div>
-        <div class="stat-label orange">Errors</div>
       </div>
     </div>
 
-    <!-- Progress -->
-    <div class="progress-section" id="progressSection">
-      <div class="progress-header">
+    <div class="progress" id="progressSection">
+      <div class="progress-head">
         <div class="progress-label" id="progressLabel"></div>
         <div class="progress-pct" id="progressPct">0%</div>
       </div>
@@ -446,34 +312,44 @@
       <div class="progress-eta" id="progressEta"></div>
     </div>
 
-    <!-- Buttons -->
-    <div class="btn-group">
-      <button id="btnScrapeAll" class="btn-primary">Scrape All Jobs</button>
-      <button id="btnScrapeDetails" class="btn-dark" disabled>Scrape Details</button>
-      <div class="btn-row hidden" id="controlRow">
-        <button id="btnPause" class="btn-warning">Pause</button>
-        <button id="btnCancel" class="btn-danger">Cancel</button>
+    <div class="actions">
+      <button id="btnScrapeAll" class="btn">Scrape job list</button>
+      <button id="btnScrapeDetails" class="btn" disabled>Scrape details</button>
+      <div class="row hidden" id="controlRow">
+        <button id="btnPause" class="btn">Pause</button>
+        <button id="btnCancel" class="btn danger">Cancel</button>
       </div>
-      <button id="btnSync" class="btn-dark" disabled>Sync to Web</button>
-      <div class="btn-row">
-        <button id="btnExport" class="btn-secondary" disabled>Export JSON</button>
-        <button id="btnReset" class="btn-secondary">Reset</button>
+      <div class="row">
+        <button id="btnSync" class="btn" disabled>Sync to web app</button>
+        <button id="btnExport" class="btn" disabled style="flex: none;">Export JSON</button>
       </div>
     </div>
-  </div>
+  </main>
 
-    <!-- Settings -->
-    <div class="settings-section">
-      <button id="btnSettings" class="settings-toggle">Settings</button>
-      <div class="settings-panel hidden" id="settingsPanel">
-        <label class="settings-label">Web App URL</label>
-        <input type="text" id="inputWebUrl" class="settings-input" placeholder="http://localhost:3000" />
-        <label class="settings-label">API Key (optional)</label>
-        <input type="text" id="inputApiKey" class="settings-input" placeholder="Leave blank if not set" />
-        <button id="btnSaveSettings" class="btn-primary" style="margin-top:8px;">Save</button>
+  <footer class="footer">
+    <div class="footer-row">
+      <button id="btnSettings" class="link-btn" aria-expanded="false" aria-controls="settingsPanel">
+        Settings
+        <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <button id="btnReset" class="link-btn reset" title="Clear the scraped jobs and details stored in the extension">Reset</button>
+    </div>
+    <div class="settings hidden" id="settingsPanel">
+      <div class="field">
+        <label for="inputWebUrl">Web app URL</label>
+        <input type="url" id="inputWebUrl" class="input" placeholder="http://localhost:3000" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="inputApiKey">API key</label>
+        <input type="password" id="inputApiKey" class="input" placeholder="Leave blank if the web app has none" autocomplete="off" />
+        <span class="hint">Only needed if API_KEY is set on the web app.</span>
+      </div>
+      <div class="settings-actions">
+        <button id="btnSaveSettings" class="btn">Save</button>
+        <span class="saved-note hidden" id="savedNote">Saved</span>
       </div>
     </div>
-  </div>
+  </footer>
 
   <script src="popup.js"></script>
 </body>

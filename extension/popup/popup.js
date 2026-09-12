@@ -3,6 +3,7 @@
 
   const $ = (id) => document.getElementById(id);
 
+  const statusBox = $("statusBox");
   const statusDot = $("statusDot");
   const statusText = $("statusText");
   const statJobs = $("statJobs");
@@ -30,8 +31,31 @@
   const inputWebUrl = $("inputWebUrl");
   const inputApiKey = $("inputApiKey");
   const btnSaveSettings = $("btnSaveSettings");
+  const savedNote = $("savedNote");
+  const linkWebApp = $("linkWebApp");
 
   let startTime = null;
+  let lastState = null;
+  let syncing = false;
+  let resetArmed = false;
+  let resetTimer = null;
+
+  // A message from the popup itself ("Synced 304 jobs", "Sync failed: ...").
+  // The background state is polled every second, so without this the poll
+  // painted over the message before it could be read. It holds until the
+  // background reports something new.
+  let notice = null;
+
+  function paintStatus(text, kind) {
+    statusText.textContent = text;
+    statusDot.className = "status-dot" + (kind ? " " + kind : "");
+    statusBox.classList.toggle("error", kind === "error");
+  }
+
+  function showNotice(text, kind) {
+    notice = { text, kind, status: lastState?.status, statusText: lastState?.statusText };
+    paintStatus(text, kind);
+  }
 
   function setStep(active, done1, done2) {
     step1.className = "step" + (done1 ? " done" : active === 1 ? " active" : "");
@@ -49,13 +73,15 @@
   function renderState(s) {
     if (!s) return;
 
+    lastState = s;
     const dotClass = {
       idle: "", error: "error", done: "success",
       "scraping-list": "active", "scraping-details": "active",
       paused: "paused",
     }[s.status] || "";
-    statusDot.className = "status-dot" + (dotClass ? " " + dotClass : "");
-    statusText.textContent = s.statusText || "Ready.";
+    if (notice && (notice.status !== s.status || notice.statusText !== s.statusText)) notice = null;
+    if (notice) paintStatus(notice.text, notice.kind);
+    else paintStatus(s.statusText || "Ready.", dotClass);
 
     const jobCount = s.jobs?.length || 0;
     const details = s.jobDetails || {};
@@ -72,7 +98,13 @@
     const errorCount = detailKeys.filter((k) => details[k]?._error).length;
     statJobs.textContent = jobCount;
     statDetails.textContent = successCount;
+    if (jobCount > 0) {
+      const of = document.createElement("small");
+      of.textContent = `/ ${jobCount}`;
+      statDetails.append(of);
+    }
     statErrors.textContent = errorCount;
+    statErrors.classList.toggle("bad", errorCount > 0);
 
     // A reclaimed service worker leaves the status saying "scraping" forever.
     // Treat a run whose heartbeat has gone quiet as stalled so the controls
@@ -127,28 +159,34 @@
     const scraping = !stalled && (s.status === "scraping-list" || s.status === "scraping-details");
     const paused = s.status === "paused";
 
-    if (stalled) {
+    if (stalled && !notice) {
       const mins = Math.round((Date.now() - s.lastTickAt) / 60000);
-      statusText.textContent =
-        `Stopped responding ${mins} minute(s) ago — press Scrape Details to pick up where it left off.`;
-      statusDot.className = "status-dot error";
+      paintStatus(
+        `Stopped responding ${mins} minute(s) ago — press Scrape details to pick up where it left off.`,
+        "error"
+      );
     }
 
     btnScrapeAll.disabled = scraping || paused;
     btnScrapeDetails.disabled = scraping || paused || jobCount === 0;
     btnExport.disabled = jobCount === 0;
-    btnSync.disabled = jobCount === 0;
-    btnReset.disabled = scraping;
+    btnSync.disabled = jobCount === 0 || syncing;
+    btnReset.disabled = scraping || (jobCount === 0 && detailKeys.length === 0);
+    if (btnReset.disabled) disarmReset();
+
+    // Only the step that comes next gets the filled button.
+    const next = scraping || paused
+      ? null
+      : jobCount === 0
+        ? btnScrapeAll
+        : successCount < jobCount
+          ? btnScrapeDetails
+          : btnSync;
+    for (const b of [btnScrapeAll, btnScrapeDetails, btnSync]) b.classList.toggle("primary", b === next);
 
     controlRow.classList.toggle("hidden", !scraping && !paused);
-
-    if (paused) {
-      btnPause.textContent = "Resume";
-      btnPause.className = "btn-success";
-    } else {
-      btnPause.textContent = "Pause";
-      btnPause.className = "btn-warning";
-    }
+    btnPause.textContent = paused ? "Resume" : "Pause";
+    btnPause.classList.toggle("primary", paused);
   }
 
   const bgMsg = (action, extra) =>
@@ -182,14 +220,16 @@
 
   btnScrapeAll.addEventListener("click", async () => {
     const { tabId, error } = await getActiveTabId();
-    if (error) { statusText.textContent = error; statusDot.className = "status-dot error"; return; }
+    if (error) return showNotice(error, "error");
+    notice = null;
     startTime = Date.now();
     bgMsg("start-scrape-list", { tabId });
   });
 
   btnScrapeDetails.addEventListener("click", async () => {
     const { tabId, error } = await getActiveTabId();
-    if (error) { statusText.textContent = error; statusDot.className = "status-dot error"; return; }
+    if (error) return showNotice(error, "error");
+    notice = null;
     startTime = Date.now();
     bgMsg("start-scrape-details", { tabId });
   });
@@ -198,7 +238,7 @@
     const s = await bgMsg("get-state");
     if (s?.status === "paused") {
       const { tabId, error } = await getActiveTabId();
-      if (error) { statusText.textContent = error; return; }
+      if (error) return showNotice(error, "error");
       bgMsg("resume", { tabId });
     } else {
       bgMsg("pause");
@@ -207,10 +247,31 @@
 
   btnCancel.addEventListener("click", () => bgMsg("cancel"));
 
+  // Reset throws away every scraped job and detail, which can be hours of
+  // work, so it takes a second click within a few seconds.
+  function disarmReset() {
+    if (!resetArmed) return;
+    resetArmed = false;
+    clearTimeout(resetTimer);
+    btnReset.textContent = "Reset";
+    btnReset.classList.remove("confirming");
+  }
+
   btnReset.addEventListener("click", () => {
+    if (!resetArmed) {
+      resetArmed = true;
+      const n = lastState?.jobs?.length || 0;
+      btnReset.textContent = `Click again to clear ${n} job${n === 1 ? "" : "s"}`;
+      btnReset.classList.add("confirming");
+      resetTimer = setTimeout(disarmReset, 4000);
+      return;
+    }
+    disarmReset();
     startTime = null;
+    notice = null;
     bgMsg("reset").then(() => bgMsg("get-state")).then(renderState);
   });
+  btnReset.addEventListener("blur", disarmReset);
 
   btnExport.addEventListener("click", async () => {
     const data = await bgMsg("export");
@@ -228,17 +289,17 @@
     a.download = `ww-jobs-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    statusText.textContent = `Exported ${exportData.length} jobs.`;
-    statusDot.className = "status-dot success";
+    showNotice(`Exported ${exportData.length} jobs.`, "success");
   });
 
-  // === Sync to Web ===
+  // === Sync to web app ===
   btnSync.addEventListener("click", async () => {
     const settings = await chrome.storage.local.get("buwSettings");
     const webUrl = settings.buwSettings?.webUrl;
     if (!webUrl) {
-      statusText.textContent = "Set Web App URL in Settings first.";
-      statusDot.className = "status-dot error";
+      openSettings();
+      showNotice("Add the web app URL in Settings, then sync again.", "error");
+      inputWebUrl.focus();
       return;
     }
 
@@ -253,10 +314,10 @@
       batchId: new Date().toISOString(),
     };
 
+    syncing = true;
     btnSync.disabled = true;
-    btnSync.textContent = "Syncing...";
-    statusText.textContent = `Syncing ${payload.jobs.length} jobs...`;
-    statusDot.className = "status-dot active";
+    btnSync.textContent = "Syncing…";
+    showNotice(`Syncing ${payload.jobs.length} jobs…`, "active");
 
     try {
       const headers = { "Content-Type": "application/json" };
@@ -272,8 +333,7 @@
       const result = await resp.json();
 
       if (resp.ok && result.success) {
-        statusText.textContent = `Synced ${result.data.imported} jobs to web app.`;
-        statusDot.className = "status-dot success";
+        showNotice(`Synced ${result.data.imported} jobs to the web app.`, "success");
       } else {
         const detail = Array.isArray(result.details)
           ? result.details
@@ -281,40 +341,53 @@
               .map((d) => `${(d.path || []).join(".")}: ${d.message}`)
               .join("; ")
           : "";
-        statusText.textContent = `Sync failed: ${result.error || resp.statusText}${
-          detail ? ` — ${detail}` : ""
-        }`;
-        statusDot.className = "status-dot error";
+        showNotice(`Sync failed: ${result.error || resp.statusText}${detail ? ` — ${detail}` : ""}`, "error");
         console.error("[buw] sync failed", result);
       }
     } catch (err) {
-      statusText.textContent = `Sync error: ${err.message}`;
-      statusDot.className = "status-dot error";
+      showNotice(`Couldn't reach the web app at ${webUrl} (${err.message}). Is it running?`, "error");
     } finally {
-      btnSync.disabled = false;
-      btnSync.textContent = "Sync to Web";
+      syncing = false;
+      btnSync.textContent = "Sync to web app";
+      if (lastState) renderState(lastState);
     }
   });
 
   // === Settings ===
+  function openSettings() {
+    settingsPanel.classList.remove("hidden");
+    btnSettings.setAttribute("aria-expanded", "true");
+  }
+
   btnSettings.addEventListener("click", () => {
-    settingsPanel.classList.toggle("hidden");
+    const open = settingsPanel.classList.toggle("hidden") === false;
+    btnSettings.setAttribute("aria-expanded", String(open));
   });
+
+  function showWebLink(webUrl) {
+    linkWebApp.classList.toggle("hidden", !webUrl);
+    if (webUrl) linkWebApp.href = webUrl;
+  }
 
   chrome.storage.local.get("buwSettings", (result) => {
     const s = result.buwSettings || {};
     inputWebUrl.value = s.webUrl || "";
     inputApiKey.value = s.apiKey || "";
+    showWebLink(s.webUrl);
   });
 
   btnSaveSettings.addEventListener("click", () => {
-    const settings = {
-      webUrl: inputWebUrl.value.trim().replace(/\/+$/, ""),
-      apiKey: inputApiKey.value.trim(),
-    };
+    const webUrl = inputWebUrl.value.trim().replace(/\/+$/, "");
+    if (webUrl && !/^https?:\/\/\S+$/.test(webUrl)) {
+      showNotice("The web app URL should start with http:// or https://", "error");
+      inputWebUrl.focus();
+      return;
+    }
+    const settings = { webUrl, apiKey: inputApiKey.value.trim() };
     chrome.storage.local.set({ buwSettings: settings }, () => {
-      statusText.textContent = "Settings saved.";
-      statusDot.className = "status-dot success";
+      showWebLink(webUrl);
+      savedNote.classList.remove("hidden");
+      setTimeout(() => savedNote.classList.add("hidden"), 2000);
     });
   });
 })();
