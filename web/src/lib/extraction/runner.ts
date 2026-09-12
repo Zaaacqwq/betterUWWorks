@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { jobs } from "@/db/schema";
-import { and, inArray, isNotNull, isNull, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, inArray, isNotNull, isNull, lt, notInArray, or, sql, type SQL } from "drizzle-orm";
 
 // Runs one kind of model extraction (skills, pay and requirements, ...) over
 // the postings still waiting for it. Each kind records when it last read a
@@ -10,7 +10,7 @@ import { and, inArray, isNotNull, isNull, lt, or, sql, type SQL } from "drizzle-
 export interface Extractor<Posting extends { jobId: string }> {
   name: string;
   // Set when a posting has been read; empty means it is waiting.
-  doneAt: typeof jobs.aiSkillsAt | typeof jobs.aiDetailsAt;
+  doneAt: typeof jobs.aiSkillsAt | typeof jobs.aiDetailsAt | typeof jobs.aiSummaryAt;
   // Postings read at once, each making however many model calls it makes.
   // Kept low because the gateway is shared with the interactive calls.
   concurrency: number;
@@ -45,13 +45,29 @@ export interface ExtractionRun {
 // waits for the detail rather than being guessed from its title.
 export function pendingWhere(
   doneAt: Extractor<{ jobId: string }>["doneAt"],
-  { olderThan, jobIds }: PendingSelection
+  { olderThan, jobIds }: PendingSelection,
+  resting: string[] = []
 ): SQL | undefined {
   return and(
     isNotNull(jobs.rawDetail),
     olderThan ? or(isNull(doneAt), lt(doneAt, olderThan)) : isNull(doneAt),
-    jobIds ? inArray(jobs.jobId, jobIds) : undefined
+    jobIds ? inArray(jobs.jobId, jobIds) : undefined,
+    resting.length > 0 ? notInArray(jobs.jobId, resting) : undefined
   );
+}
+
+// A posting whose reading just failed rests before it is tried again. Without
+// this it stays first in line and a backfill spends every batch failing the
+// same postings until nothing else gets read.
+const FAILURE_REST_MS = 30 * 60 * 1000;
+const failedAt = new Map<string, Map<string, number>>();
+
+function resting(name: string): string[] {
+  const failures = failedAt.get(name);
+  if (!failures) return [];
+  const now = Date.now();
+  for (const [jobId, at] of failures) if (now - at > FAILURE_REST_MS) failures.delete(jobId);
+  return [...failures.keys()];
 }
 
 export async function countPending<P extends { jobId: string }>(
@@ -61,7 +77,7 @@ export async function countPending<P extends { jobId: string }>(
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(jobs)
-    .where(pendingWhere(extractor.doneAt, selection));
+    .where(pendingWhere(extractor.doneAt, selection, resting(extractor.name)));
   return row.count;
 }
 
@@ -77,7 +93,7 @@ export async function runPending<P extends { jobId: string }>(
   const busy = inFlight.get(extractor.name) ?? new Set<string>();
   inFlight.set(extractor.name, busy);
 
-  const pending = await extractor.load(pendingWhere(extractor.doneAt, selection), limit);
+  const pending = await extractor.load(pendingWhere(extractor.doneAt, selection, resting(extractor.name)), limit);
   const queue = pending.filter((p) => !busy.has(p.jobId));
   queue.forEach((p) => busy.add(p.jobId));
   const skipped = pending.length - queue.length;
@@ -94,6 +110,9 @@ export async function runPending<P extends { jobId: string }>(
         const reason = err instanceof Error ? err.message : String(err);
         console.error(`[${extractor.name}] extraction failed for ${posting.jobId}: ${reason}`);
         failures.push({ jobId: posting.jobId, reason });
+        const rested = failedAt.get(extractor.name) ?? new Map<string, number>();
+        rested.set(posting.jobId, Date.now());
+        failedAt.set(extractor.name, rested);
       } finally {
         busy.delete(posting.jobId);
       }

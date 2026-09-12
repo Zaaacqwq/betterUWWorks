@@ -27,6 +27,13 @@ describe("pendingWhere", () => {
     expect(params).toEqual([cutoff.toISOString()]);
   });
 
+  it("leaves out postings resting after a failure", () => {
+    const where = pendingWhere(jobs.aiDetailsAt, {}, ["x"]);
+    const { sql, params } = new PgDialect().sqlToQuery(where!);
+    expect(sql).toContain('"jobs"."job_id" not in ($1)');
+    expect(params).toEqual(["x"]);
+  });
+
   it("limits the selection to the given postings", () => {
     const { sql, params } = render({ jobIds: ["a", "b"] });
     expect(sql).toContain('"jobs"."job_id" in ($1, $2)');

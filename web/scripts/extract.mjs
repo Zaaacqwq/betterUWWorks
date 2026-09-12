@@ -2,14 +2,14 @@
 // nothing is left. Imports extract their own postings; this is for a backfill,
 // or with --redo for re-running every posting after a prompt or check changes.
 //
-//   node scripts/extract.mjs <skills|details> [--redo | --redo=<ISO time>] [--url http://localhost:3000]
+//   node scripts/extract.mjs <skills|details|summary> [--redo | --redo=<ISO time>] [--url http://localhost:3000]
 //
 // --redo re-extracts every posting extracted before now. An interrupted redo
 // is resumed with the time it printed when it started, so postings it already
 // did are not paid for twice. Sends API_KEY as x-api-key when it is set, as
 // the import does.
 
-const KINDS = { skills: "extract-skills", details: "extract-details" };
+const KINDS = { skills: "extract-skills", details: "extract-details", summary: "extract-summary" };
 const args = process.argv.slice(2);
 const kind = args.find((a) => a in KINDS);
 if (!kind) {
@@ -33,13 +33,29 @@ let processed = 0;
 let failed = 0;
 let idleBatches = 0;
 
+// A dropped connection — the laptop slept, the dev server restarted — is
+// waited out rather than ending the run; each batch picks up what is left.
+const MAX_NETWORK_RETRIES = 20;
+
+async function requestBatch() {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const res = await fetch(`${baseUrl}/api/jobs/${KINDS[kind]}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ limit: BATCH, olderThan }),
+      });
+      return { res, body: await res.json().catch(() => null) };
+    } catch (err) {
+      if (attempt >= MAX_NETWORK_RETRIES) throw err;
+      console.log(`  request failed (${err.cause?.code ?? err.message}); retrying`);
+      await new Promise((resolve) => setTimeout(resolve, WAIT_FOR_OTHER_RUN_MS));
+    }
+  }
+}
+
 for (;;) {
-  const res = await fetch(`${baseUrl}/api/jobs/${KINDS[kind]}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ limit: BATCH, olderThan }),
-  });
-  const body = await res.json().catch(() => null);
+  const { res, body } = await requestBatch();
   if (!res.ok || !body?.success) {
     console.error(`Request failed (${res.status}):`, body?.error ?? "no response body");
     process.exit(1);
