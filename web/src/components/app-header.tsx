@@ -3,6 +3,7 @@
 import { usePopover } from "@/hooks/use-popover";
 import { BookmarkIcon, DocumentIcon, MoreIcon, RefreshIcon, TrashIcon } from "./icons";
 import { useTheme } from "@/hooks/use-theme";
+import { ExtractionStatus } from "./extraction-status";
 import type { ThemeChoice } from "@/lib/theme";
 
 export type ClearState = "idle" | "confirming" | "clearing";
@@ -118,6 +119,10 @@ function HeaderMenu({
           </button>
 
           <ThemeSwitch />
+
+          <div className="my-1 border-t border-hairline-soft" />
+
+          <ExtractionStatus />
 
           <div className="my-1 border-t border-hairline-soft" />
 

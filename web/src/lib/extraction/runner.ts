@@ -62,7 +62,12 @@ export function pendingWhere(
 const FAILURE_REST_MS = 30 * 60 * 1000;
 const failedAt = new Map<string, Map<string, number>>();
 
-function resting(name: string): string[] {
+// Lets a student retry failed postings now rather than after their rest.
+export function clearResting(name: string): void {
+  failedAt.delete(name);
+}
+
+export function resting(name: string): string[] {
   const failures = failedAt.get(name);
   if (!failures) return [];
   const now = Date.now();
