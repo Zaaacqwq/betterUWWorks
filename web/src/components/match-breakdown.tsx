@@ -66,8 +66,12 @@ export function MatchBreakdown({ score }: { score: MatchScore }) {
                 name={m.skill}
                 showCheck={false}
                 className="text-xs font-medium px-2 py-0.5 rounded-full bg-good/10 text-good"
-                suffix={m.evidenceType === "inferred" || m.evidenceType === "weak_inferred" ? " ~" : ""}
-                title={`${m.evidenceType.replace("_", " ")} · confidence ${Math.round(m.confidence * 100)}% — click to say how well you know it`}
+                suffix={m.via ? " ≈" : m.evidenceType === "inferred" || m.evidenceType === "weak_inferred" ? " ~" : ""}
+                title={
+                  m.via
+                    ? `Half credit: you know ${m.via}, a related skill — click to add ${m.skill} itself`
+                    : `${m.evidenceType.replace("_", " ")} · confidence ${Math.round(m.confidence * 100)}% — click to say how well you know it`
+                }
               />
             ))}
             {skills.missing.map((s, i) => (
@@ -89,7 +93,7 @@ export function MatchBreakdown({ score }: { score: MatchScore }) {
         )}
         {skills.jobSkills.length > 0 && (
           <p className="text-xs text-stone">
-            Green skills are yours (~ means inferred from your resume); dashed ones are missing. Click any skill to add it or say how well you know it — skills you know only a little count for half. A short skill list says less, so its score leans toward a typical match until the posting names more.
+            Green skills are yours (≈ means half credit through a related skill you have); dashed ones are missing. Click any skill to add it or say how well you know it — skills you know only a little count for half. A short skill list says less, so its score leans toward a typical match until the posting names more.
           </p>
         )}
       </section>

@@ -90,6 +90,9 @@ export interface MatchedSkillInfo {
   evidenceType: EvidenceType;
   weight: number;
   level?: SkillLevel;
+  // Set when the student doesn't have this skill but a related one — the
+  // name of theirs it was credited through, for half credit.
+  via?: string;
 }
 
 // "pending": the posting's skills have not been extracted yet, so nothing is

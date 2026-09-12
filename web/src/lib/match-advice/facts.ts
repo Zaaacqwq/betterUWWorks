@@ -44,7 +44,8 @@ function matchedFacts(profile: ResumeProfile, score: MatchScore, extraSkills: st
   return score.debug.skills.matched.map((m) => ({
     skill: m.skill,
     evidence: capabilities.get(normalizeSkill(m.skill))?.evidenceSource ?? "Resume",
-    familiar: m.level === "familiar",
+    // Known only a little, or only through a related skill: not one to lead with.
+    familiar: m.level === "familiar" || m.via !== undefined,
   }));
 }
 

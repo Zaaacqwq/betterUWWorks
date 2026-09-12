@@ -1,6 +1,7 @@
 import type { Capability, EvidenceType, MatchedSkillInfo, SkillLevel } from "./types";
 import { normalizeSkill } from "./skill-utils";
 import { expandSkill } from "./skill-utils";
+import { RELATED_CREDIT, relatedCapability } from "./related-skills";
 
 const EVIDENCE_MULTIPLIERS: Record<EvidenceType, number> = {
   work_used: 1.0,
@@ -73,6 +74,7 @@ export function computeWeightedOverlap(
   let weightSum = 0;
   const matched: MatchedSkillInfo[] = [];
   const missing: string[] = [];
+  const held = [...new Set(capabilityMap.values())];
 
   for (const js of jobSkills) {
     const expanded = expandSkill(js);
@@ -97,7 +99,21 @@ export function computeWeightedOverlap(
     }
 
     if (!found) {
-      missing.push(js);
+      const related = relatedCapability(js, held, effectiveWeight);
+      if (related) {
+        const w = Math.min(effectiveWeight(related), 1) * RELATED_CREDIT;
+        weightSum += w;
+        matched.push({
+          skill: js,
+          confidence: related.confidence,
+          evidenceType: related.evidenceType,
+          weight: w,
+          ...(related.level && { level: related.level }),
+          via: related.name,
+        });
+      } else {
+        missing.push(js);
+      }
     }
   }
 
