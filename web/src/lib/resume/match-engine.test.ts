@@ -30,7 +30,20 @@ describe("computeMatchScore skills", () => {
     const score = computeMatchScore(profile, null, job({ aiSkills: ["Python", "SQL"] }));
     expect(score.debug.skills.source).toBe("ai");
     expect(score.debug.skills.missing).toEqual(["SQL"]);
-    expect(score.breakdown.skills).toBe(35);
+    // One of two matched, read alongside three imagined at the typical 40%.
+    expect(score.breakdown.skills).toBe(31);
+  });
+
+  it("gives a posting with nothing to go on a neutral skills score, not zero", () => {
+    expect(computeMatchScore(profile, null, job({ aiSkills: null })).breakdown.skills).toBe(28);
+    expect(computeMatchScore(profile, null, job({ aiSkills: [] })).breakdown.skills).toBe(28);
+  });
+
+  it("ranks a full match of a long list above a full match of a short one", () => {
+    const short = computeMatchScore(profile, null, job({ aiSkills: ["Python"] }));
+    const many = { ...profile, skills: Array.from({ length: 10 }, (_, i) => ({ name: `S${i}`, proficiency: "advanced" })) };
+    const long = computeMatchScore(many as unknown as ResumeProfile, null, job({ aiSkills: Array.from({ length: 10 }, (_, i) => `S${i}`) }));
+    expect(long.breakdown.skills).toBeGreaterThan(short.breakdown.skills);
   });
 
   it("treats an extraction that found nothing as extracted, not pending", () => {

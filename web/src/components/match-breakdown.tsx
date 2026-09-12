@@ -4,6 +4,9 @@ import type { MatchScore } from "@/lib/resume/types";
 import { matchTone, TONE_TEXT } from "@/lib/format";
 import { WarningIcon } from "./icons";
 import { SkillPick } from "./skill-pick";
+import { SKILL_POINTS, TYPICAL_OVERLAP } from "@/lib/resume/match-engine";
+
+const neutralSkills = Math.round(TYPICAL_OVERLAP * SKILL_POINTS);
 
 const MAX = { skills: 70, level: 15, program: 15 } as const;
 
@@ -77,16 +80,16 @@ export function MatchBreakdown({ score }: { score: MatchScore }) {
           </div>
         ) : pending ? (
           <p className="text-[13px] text-slate">
-            This posting&apos;s skills are still being extracted. The skills score counts once they&apos;re in.
+            This posting&apos;s skills are still being extracted. Until they&apos;re in, skills score a neutral {neutralSkills} of {MAX.skills}.
           </p>
         ) : (
           <p className="text-[13px] text-slate">
-            This posting didn&apos;t yield a skill list, so skills score 0 of {MAX.skills}.
+            This posting names no skills, so skills score a neutral {neutralSkills} of {MAX.skills}.
           </p>
         )}
         {skills.jobSkills.length > 0 && (
           <p className="text-xs text-stone">
-            Green skills are yours (~ means inferred from your resume); dashed ones are missing. Click any skill to add it or say how well you know it — skills you know only a little count for half.
+            Green skills are yours (~ means inferred from your resume); dashed ones are missing. Click any skill to add it or say how well you know it — skills you know only a little count for half. A short skill list says less, so its score leans toward a typical match until the posting names more.
           </p>
         )}
       </section>

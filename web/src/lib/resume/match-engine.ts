@@ -45,12 +45,27 @@ export function computeMatchScore(
   };
 }
 
+export const SKILL_POINTS = 70;
+
+// How much a posting's skill list can say depends on how long it is: matching
+// both skills of a two-skill posting is weak evidence, matching twenty of
+// twenty strong. So the overlap is read as if the list also held a few skills
+// matched at a typical rate — they sway a short list a lot and a long one
+// little. A posting with no skills (none listed, or not read yet) lands at that
+// typical rate rather than at zero.
+export const TYPICAL_OVERLAP = 0.4;
+const IMAGINED_SKILLS = 3;
+
+export function credibleOverlap(overlap: number, listed: number): number {
+  return (overlap * listed + TYPICAL_OVERLAP * IMAGINED_SKILLS) / (listed + IMAGINED_SKILLS);
+}
+
 function scoreSkills(profile: ResumeProfile, job: JobForMatch, extraSkills?: string[], skillLevels?: SkillLevels) {
   const { skills: jobSkills, source } = resolveJobSkills(job);
 
   if (jobSkills.length === 0) {
     return {
-      score: 0,
+      score: credibleOverlap(0, 0) * SKILL_POINTS,
       debug: {
         source,
         jobSkills: [] as string[],
@@ -70,7 +85,7 @@ function scoreSkills(profile: ResumeProfile, job: JobForMatch, extraSkills?: str
     const result = computeWeightedOverlap(capMap, jobSkills);
 
     return {
-      score: result.overlap * 70,
+      score: credibleOverlap(result.overlap, jobSkills.length) * SKILL_POINTS,
       debug: {
         source,
         jobSkills,
@@ -88,7 +103,7 @@ function scoreSkills(profile: ResumeProfile, job: JobForMatch, extraSkills?: str
   const result = computeSkillOverlap(allResumeSkills, jobSkills);
 
   return {
-    score: result.overlap * 70,
+    score: credibleOverlap(result.overlap, jobSkills.length) * SKILL_POINTS,
     debug: {
       source,
       jobSkills,
