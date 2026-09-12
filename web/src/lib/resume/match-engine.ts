@@ -1,7 +1,7 @@
 import type { ResumeProfile, UserInfo, MatchScore, MatchDebug, SkillSource } from "./types";
 import type { PostingDetails } from "@/lib/job-details/types";
 import { computeSkillOverlap } from "./skill-utils";
-import { buildCapabilityMap, computeWeightedOverlap, extraSkillsToCapabilities } from "./capability-utils";
+import { applySkillLevels, buildCapabilityMap, computeWeightedOverlap, extraSkillsToCapabilities, type SkillLevels } from "./capability-utils";
 import { programFit, requirementWarnings } from "./requirement-checks";
 
 export interface JobForMatch {
@@ -19,9 +19,10 @@ export function computeMatchScore(
   profile: ResumeProfile,
   userInfo: UserInfo | null,
   job: JobForMatch,
-  extraSkills?: string[]
+  extraSkills?: string[],
+  skillLevels?: SkillLevels
 ): MatchScore {
-  const skillsResult = scoreSkills(profile, job, extraSkills);
+  const skillsResult = scoreSkills(profile, job, extraSkills, skillLevels);
   const levelResult = scoreLevel(profile, userInfo, job);
   const programResult = programFit(userInfo, job.aiDetails);
   const warnings = requirementWarnings(userInfo, job.aiDetails);
@@ -44,7 +45,7 @@ export function computeMatchScore(
   };
 }
 
-function scoreSkills(profile: ResumeProfile, job: JobForMatch, extraSkills?: string[]) {
+function scoreSkills(profile: ResumeProfile, job: JobForMatch, extraSkills?: string[], skillLevels?: SkillLevels) {
   const { skills: jobSkills, source } = resolveJobSkills(job);
 
   if (jobSkills.length === 0) {
@@ -61,10 +62,10 @@ function scoreSkills(profile: ResumeProfile, job: JobForMatch, extraSkills?: str
   }
 
   if (profile.capabilities && profile.capabilities.length > 0) {
-    const allCaps = [
-      ...profile.capabilities,
-      ...extraSkillsToCapabilities(extraSkills ?? []),
-    ];
+    const allCaps = applySkillLevels(
+      [...profile.capabilities, ...extraSkillsToCapabilities(extraSkills ?? [])],
+      skillLevels
+    );
     const capMap = buildCapabilityMap(allCaps);
     const result = computeWeightedOverlap(capMap, jobSkills);
 

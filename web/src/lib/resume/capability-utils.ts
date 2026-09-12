@@ -1,4 +1,4 @@
-import type { Capability, EvidenceType, MatchedSkillInfo } from "./types";
+import type { Capability, EvidenceType, MatchedSkillInfo, SkillLevel } from "./types";
 import { normalizeSkill } from "./skill-utils";
 import { expandSkill } from "./skill-utils";
 
@@ -10,9 +10,25 @@ const EVIDENCE_MULTIPLIERS: Record<EvidenceType, number> = {
   weak_inferred: 0.4,
 };
 
+// A level the student set outweighs what the resume suggests: someone who
+// says they only know a listed skill a little gets half credit for it.
+export const LEVEL_WEIGHT: Record<SkillLevel, number> = { proficient: 1, familiar: 0.5 };
+
 export function effectiveWeight(capability: Capability): number {
+  if (capability.level) return LEVEL_WEIGHT[capability.level];
   const multiplier = EVIDENCE_MULTIPLIERS[capability.evidenceType] ?? 0.6;
   return capability.confidence * multiplier;
+}
+
+// Skill levels the student has set, keyed by normalizeSkill(name).
+export type SkillLevels = Record<string, SkillLevel>;
+
+export function applySkillLevels(capabilities: Capability[], levels: SkillLevels | undefined): Capability[] {
+  if (!levels || Object.keys(levels).length === 0) return capabilities;
+  return capabilities.map((c) => {
+    const level = levels[normalizeSkill(c.name)];
+    return level ? { ...c, level } : c;
+  });
 }
 
 export function buildCapabilityMap(capabilities: Capability[]): Map<string, Capability> {
@@ -73,6 +89,7 @@ export function computeWeightedOverlap(
           confidence: cap.confidence,
           evidenceType: cap.evidenceType,
           weight: w,
+          ...(cap.level && { level: cap.level }),
         });
         found = true;
         break;

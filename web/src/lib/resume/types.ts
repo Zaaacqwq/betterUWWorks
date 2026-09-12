@@ -7,7 +7,13 @@ export interface Capability {
   evidenceType: EvidenceType;
   confidence: number;
   reasoning: string;
+  // How well the student says they know it, when they've said; it then
+  // decides the skill's weight instead of the resume evidence.
+  level?: SkillLevel;
 }
+
+// "familiar": has used it a little. Set by the student, per skill.
+export type SkillLevel = "proficient" | "familiar";
 
 export interface ResumeProfile {
   skills: Skill[];
@@ -83,6 +89,7 @@ export interface MatchedSkillInfo {
   confidence: number;
   evidenceType: EvidenceType;
   weight: number;
+  level?: SkillLevel;
 }
 
 // "pending": the posting's skills have not been extracted yet, so nothing is
