@@ -1,11 +1,11 @@
-import type { PostingDetails, Requirement, RequirementKind } from "@/lib/job-details/types";
+import type { ListedDetails, ListedRequirement, RequirementKind } from "@/lib/job-details/types";
 import type { MatchDebug, QualificationWarning, UserInfo } from "./types";
 
 // Checks a student against the requirements read out of a posting
 // (lib/job-details). Nothing here reads the posting's text itself: a posting
 // whose details haven't been read yet gets no warnings rather than guesses.
 
-function find(details: PostingDetails, kind: RequirementKind): Requirement | undefined {
+function find(details: ListedDetails, kind: RequirementKind): ListedRequirement | undefined {
   return details.requirements.find((r) => r.kind === kind);
 }
 
@@ -17,7 +17,7 @@ function sameScale(a: number, b: number): boolean {
 
 export function requirementWarnings(
   userInfo: UserInfo | null,
-  details: PostingDetails | null | undefined
+  details: ListedDetails | null | undefined
 ): QualificationWarning[] {
   if (!userInfo || !details) return [];
   const warnings: QualificationWarning[] = [];
@@ -116,7 +116,7 @@ export const PROGRAM_POINTS = { max: 15, unknown: 8, preferredElsewhere: 9, rest
 
 export function programFit(
   userInfo: UserInfo | null,
-  details: PostingDetails | null | undefined
+  details: ListedDetails | null | undefined
 ): { score: number; debug: MatchDebug["program"] } {
   const userProgram = userInfo?.program?.trim() ?? "";
   if (!userProgram || !details) {
@@ -128,10 +128,17 @@ export function programFit(
     return { score: PROGRAM_POINTS.max, debug: { userProgram, jobMentionsProgram: false, matched: false } };
   }
 
+  // The list keeps a program requirement's sentence; without it there is no
+  // telling whether the student's program is named.
+  const quote = requirement.quote;
+  if (quote === undefined) {
+    return { score: PROGRAM_POINTS.unknown, debug: { userProgram, jobMentionsProgram: true, matched: false } };
+  }
+
   const matched =
-    programNames(userProgram).some((name) => names(requirement.quote, name)) ||
-    namesAcrossAList(requirement.quote, userProgram) ||
-    opensToAllEngineering(requirement.quote, userProgram);
+    programNames(userProgram).some((name) => names(quote, name)) ||
+    namesAcrossAList(quote, userProgram) ||
+    opensToAllEngineering(quote, userProgram);
   const score = matched
     ? PROGRAM_POINTS.max
     : requirement.required

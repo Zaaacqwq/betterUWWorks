@@ -1,5 +1,5 @@
 import type { ResumeProfile, UserInfo, MatchScore, MatchDebug, SkillSource } from "./types";
-import type { PostingDetails } from "@/lib/job-details/types";
+import type { ListedDetails } from "@/lib/job-details/types";
 import { computeSkillOverlap } from "./skill-utils";
 import {
   applySkillLevels,
@@ -13,12 +13,9 @@ import { programFit, requirementWarnings } from "./requirement-checks";
 
 export interface JobForMatch {
   level: string | null;
-  requiredSkills: string | null;
-  jobSummary: string | null;
-  specialRequirements: string | null;
   aiSkills: string[] | null;
   // Pay and requirements read out of the posting; null until they have been.
-  aiDetails?: PostingDetails | null;
+  aiDetails?: ListedDetails | null;
   hiresByWorkTermNumber: Record<string, number> | null;
 }
 

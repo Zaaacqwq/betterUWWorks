@@ -1,4 +1,4 @@
-import type { PostingDetails } from "@/lib/job-details/types";
+import type { ListedDetails, PostingDetails } from "@/lib/job-details/types";
 
 export interface TableData {
   headers: string[];
@@ -31,7 +31,6 @@ export interface JobSummary {
   openings: number | null;
   jobType: string | null;
   workTerm: string | null;
-  jobSummary: string | null;
   locationArrangement: string | null;
   workTermDuration: string | null;
   parsedHourlyMin: number | null;
@@ -39,10 +38,9 @@ export interface JobSummary {
   employerRating: number | null;
   employerRatingCount: number | null;
   totalHires: number | null;
-  requiredSkills: string | null;
-  specialRequirements: string | null;
   aiSkills: string[] | null;
-  aiDetails: PostingDetails | null;
+  // Without most of the posting's sentences; see lib/job-details/listed.ts.
+  aiDetails: ListedDetails | null;
   hiresByWorkTermNumber: Record<string, number> | null;
 }
 

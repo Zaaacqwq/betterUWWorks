@@ -83,7 +83,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const score = computeMatchScore(
     profile,
     userInfo,
-    { ...job, requiredSkills: null, jobSummary: null, specialRequirements: null },
+    job,
     extraSkills,
     parsed.data.skillLevels
   );

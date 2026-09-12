@@ -1,4 +1,4 @@
-import type { PayInfo, PayPeriod, Requirement, RequirementKind, TermRate } from "./types";
+import type { ListedPay, PayPeriod, Requirement, RequirementKind, TermRate } from "./types";
 
 // How a posting's pay and requirements read on screen. Pay is shown as the
 // posting states it — its currency, its period — with the hourly C$ figure
@@ -57,7 +57,7 @@ function range(min: number | null, max: number | null, currency: string | null):
   return `${formatAmount(min, currency)}–${formatAmount(max, currency).replace(/^[^\d]+/, "")}`;
 }
 
-export function payDisplay(pay: PayInfo | null): PayDisplay | null {
+export function payDisplay(pay: ListedPay | null): PayDisplay | null {
   if (!pay) return null;
   if (!pay.stated) return { text: "Not stated", hourlyCad: null, periodInferred: false, currencyAssumed: false };
 

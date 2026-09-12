@@ -10,9 +10,6 @@ const profile = {
 function job(overrides: Partial<JobForMatch>): JobForMatch {
   return {
     level: null,
-    requiredSkills: "Experience with the next generation of Node and Express tooling",
-    jobSummary: null,
-    specialRequirements: null,
     aiSkills: null,
     hiresByWorkTermNumber: null,
     ...overrides,

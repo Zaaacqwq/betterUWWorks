@@ -67,3 +67,14 @@ export interface PostingDetails {
   pay: PayInfo | null;
   requirements: Requirement[];
 }
+
+// What the job list gets of a posting's details: enough to show and score it.
+// The posting's sentences are left for the detail view, except a program
+// requirement's, which the match reads for the student's program (see listed.ts).
+export type ListedPay = Omit<PayInfo, "quote">;
+export type ListedRequirement = Omit<Requirement, "quote"> & { quote?: string };
+
+export interface ListedDetails {
+  pay: ListedPay | null;
+  requirements: ListedRequirement[];
+}

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { jobs } from "@/db/schema";
 import { sql, ilike, and, SQL, desc, asc, gte, inArray, or } from "drizzle-orm";
 import { REQUIREMENT_KINDS, type RequirementKind } from "@/lib/job-details/types";
+import { listedDetails } from "@/lib/job-details/listed";
 
 // The job list page fetches every row in one request so it can score and sort
 // against the resume client-side, so this cap has to clear a full term's
@@ -118,7 +119,6 @@ export async function GET(request: NextRequest) {
         openings: jobs.openings,
         jobType: jobs.jobType,
         workTerm: jobs.workTerm,
-        jobSummary: jobs.jobSummary,
         locationArrangement: jobs.locationArrangement,
         workTermDuration: jobs.workTermDuration,
         parsedHourlyMin: jobs.parsedHourlyMin,
@@ -126,8 +126,6 @@ export async function GET(request: NextRequest) {
         employerRating: jobs.employerRating,
         employerRatingCount: jobs.employerRatingCount,
         totalHires: jobs.totalHires,
-        requiredSkills: jobs.requiredSkills,
-        specialRequirements: jobs.specialRequirements,
         aiSkills: jobs.aiSkills,
         aiDetails: jobs.aiDetails,
         hiresByWorkTermNumber: sql<Record<string, number> | null>`${jobs.workTermRatings}->'hiresByWorkTermNumber'`,
@@ -147,7 +145,9 @@ export async function GET(request: NextRequest) {
 
   return Response.json({
     success: true,
-    data: results,
+    // The posting's full text and most of the sentences its details were read
+    // from are only needed in the detail view, which fetches its own.
+    data: results.map((r) => ({ ...r, aiDetails: listedDetails(r.aiDetails) })),
     meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
   });
 }
