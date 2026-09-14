@@ -24,7 +24,7 @@ export function PostingGlance({ job }: { job: JobDetail }) {
   if (!readYet && summary.state === "none") return null;
 
   return (
-    <section className="rounded-[10px] bg-surface px-4 py-3.5 space-y-3.5">
+    <section data-tour="glance" className="rounded-[10px] bg-surface px-4 py-3.5 space-y-3.5">
       <Summary state={summary} />
       {details?.pay && <PayRow pay={details.pay} />}
       {chips.length > 0 && (

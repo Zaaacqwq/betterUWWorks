@@ -40,6 +40,7 @@ export function JobDetailHeader({ job, saved, matchScore, onToggleSave, onClose 
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <button
+            data-tour="save"
             onClick={() => onToggleSave(job.jobId)}
             aria-pressed={saved}
             className={`h-8 px-3 flex items-center gap-1.5 rounded-lg border text-[12.5px] font-medium transition-colors ${
@@ -52,6 +53,7 @@ export function JobDetailHeader({ job, saved, matchScore, onToggleSave, onClose 
             {saved ? "Saved" : "Save"}
           </button>
           <button
+            data-tour="copy-id"
             onClick={handleCopyId}
             className="hidden sm:flex h-8 px-3 items-center gap-1.5 rounded-lg border border-hairline text-xs font-mono text-charcoal hover:bg-surface transition-colors"
             title="Copy job ID"
@@ -110,6 +112,7 @@ function MetricStrip({ job, matchScore }: { job: JobDetail; matchScore?: MatchSc
 
   return (
     <div
+      data-tour="detail-metrics"
       className={`grid grid-cols-2 ${cells.length === 4 ? "sm:grid-cols-4" : "sm:grid-cols-3"} border border-hairline-soft rounded-[10px] bg-surface-soft overflow-hidden`}
     >
       {cells.map((c, i) => (

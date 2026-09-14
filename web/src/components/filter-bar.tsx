@@ -66,7 +66,7 @@ export function FilterBar({
 
   return (
     <div className="space-y-2.5">
-      <div className="flex flex-wrap items-center gap-1">
+      <div data-tour="filters" className="flex flex-wrap items-center gap-1">
         <MultiSelectChip name="Work mode" value={filters.arrangement} options={options.arrangements} onChange={set("arrangement")} />
         <MultiSelectChip name="Work term" value={filters.workTerm} options={options.workTerms} onChange={set("workTerm")} />
         <MultiSelectChip name="Location" value={filters.location} options={options.locations} onChange={set("location")} />
@@ -100,7 +100,7 @@ export function FilterBar({
             <><span className="font-semibold text-ink">{shownCount}</span> of {catalogTotal} jobs</>
           )}
         </p>
-        <div className="flex items-center gap-1">
+        <div data-tour="sort" className="flex items-center gap-1">
           <label htmlFor="sort-by" className="text-steel">Sort</label>
           <span className="relative flex items-center">
             <select

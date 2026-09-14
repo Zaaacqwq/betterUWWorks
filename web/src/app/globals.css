@@ -150,3 +150,89 @@ body {
   background: var(--canvas);
   color: var(--charcoal);
 }
+
+/* First-visit tour (components/onboarding-tour.tsx, driver.js) in the app's
+   own colours. Every value is a theme token, so it follows light and dark. */
+.driver-popover.buw-tour {
+  background: var(--canvas);
+  color: var(--charcoal);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  padding: 16px 18px 14px;
+  max-width: 340px;
+  font-family: inherit;
+}
+.buw-tour .driver-popover-arrow {
+  display: none;
+}
+.buw-tour .driver-popover-title {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.buw-tour .driver-popover-description {
+  margin-top: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--slate);
+}
+.buw-tour .driver-popover-close-btn {
+  color: var(--steel);
+}
+.buw-tour .driver-popover-close-btn:hover {
+  color: var(--ink);
+}
+.buw-tour .driver-popover-footer {
+  margin-top: 14px;
+  gap: 8px;
+}
+.buw-tour .driver-popover-progress-text {
+  font-size: 12px;
+  color: var(--stone);
+}
+.buw-tour .driver-popover-navigation-btns {
+  gap: 6px;
+}
+.buw-tour .driver-popover-footer button {
+  text-shadow: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 8px 12px;
+  margin: 0;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  background: var(--canvas);
+  color: var(--charcoal);
+}
+.buw-tour .driver-popover-footer button:hover {
+  background: var(--surface);
+}
+.buw-tour .driver-popover-footer button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.buw-tour .driver-popover-footer .driver-popover-next-btn,
+.buw-tour .driver-popover-footer .buw-tour-cta {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+.buw-tour .driver-popover-footer .driver-popover-next-btn:hover,
+.buw-tour .driver-popover-footer .buw-tour-cta:hover {
+  background: var(--primary-pressed);
+}
+/* On the resume step the upload is the main action; skipping is secondary. */
+.buw-tour-resume .driver-popover-footer .driver-popover-next-btn {
+  background: var(--canvas);
+  border-color: var(--hairline);
+  color: var(--charcoal);
+}
+.buw-tour-resume .driver-popover-footer .driver-popover-next-btn:hover {
+  background: var(--surface);
+}

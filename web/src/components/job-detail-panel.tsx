@@ -58,7 +58,7 @@ export function JobDetailPanel({ jobId, saved, matchScore, onToggleSave, onClose
       <div className="hidden lg:flex flex-col items-center justify-center h-full text-center px-8 gap-2">
         <p className="text-sm text-slate">Select a job to see the full posting</p>
         <p className="text-xs text-stone">
-          <Kbd>j</Kbd> <Kbd>k</Kbd> move through the list · <Kbd>/</Kbd> search · <Kbd>esc</Kbd> close
+          <Kbd>↑</Kbd> <Kbd>↓</Kbd> move through the list · <Kbd>/</Kbd> search · <Kbd>esc</Kbd> close
         </p>
       </div>
     );
@@ -95,6 +95,7 @@ export function JobDetailPanel({ jobId, saved, matchScore, onToggleSave, onClose
             {tabs.map((t) => (
               <button
                 key={t.id}
+                data-tour={t.id === "match" ? "match-tab" : undefined}
                 role="tab"
                 aria-selected={activeTab === t.id}
                 onClick={() => setTab(t.id)}

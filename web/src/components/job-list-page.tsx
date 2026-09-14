@@ -11,6 +11,7 @@ import { useMatchScores } from "@/hooks/use-match-scores";
 import { ResumeUpload } from "./resume-upload";
 import { AppHeader, type ClearState } from "./app-header";
 import { AccessGate } from "./access-gate";
+import { OnboardingTour } from "./onboarding-tour";
 import { useViewer } from "@/hooks/use-viewer";
 import { ChevronLeftIcon } from "./icons";
 import type { JobSummary, Filters } from "./types/job";
@@ -80,6 +81,8 @@ export function JobListPage() {
   const { profile, hasResume, userInfo, extraSkills, skillLevels } = useResume();
   const { scores } = useMatchScores(profile, userInfo, jobs, extraSkills, skillLevels);
   const [resumeOpen, setResumeOpen] = useState(false);
+  // Bumped by "Take the tour" in the header menu.
+  const [tourRequest, setTourRequest] = useState(0);
 
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -269,10 +272,17 @@ export function JobListPage() {
     listRef.current?.scrollTo({ top: 0 });
   }, [page]);
 
+  // The tour points at a posting's detail pane, so it needs one open.
+  const openFirstJob = useCallback(() => {
+    if (!selectedJobId && paginatedJobs[0]) setSelectedJobId(paginatedJobs[0].jobId);
+  }, [selectedJobId, paginatedJobs]);
+
   // Keyboard navigation
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (resumeOpen) return;
+      // The tour's own arrow keys and Esc step through it; the list waits.
+      if (document.body.classList.contains("driver-active")) return;
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLSelectElement ||
@@ -284,10 +294,10 @@ export function JobListPage() {
         return;
       }
 
-      if ((e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "j" || e.key === "k") && paginatedJobs.length > 0) {
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && paginatedJobs.length > 0) {
         e.preventDefault();
         const currentIndex = paginatedJobs.findIndex((j) => j.jobId === selectedJobId);
-        const direction = e.key === "ArrowDown" || e.key === "j" ? 1 : -1;
+        const direction = e.key === "ArrowDown" ? 1 : -1;
         const nextIndex = currentIndex === -1
           ? 0
           : Math.max(0, Math.min(paginatedJobs.length - 1, currentIndex + direction));
@@ -318,6 +328,7 @@ export function JobListPage() {
         clearError={clearError}
         onClearAll={clearAllJobs}
         onCancelClear={cancelClear}
+        onStartTour={() => setTourRequest((n) => n + 1)}
       />
 
       {/* Split panel body */}
@@ -370,8 +381,8 @@ export function JobListPage() {
               // card's longest unwrapped line — a long employer name that is
               // meant to be cut short — and pushes every card past the edge.
               <div className="grid grid-cols-1 gap-2">
-                {paginatedJobs.map((job) => (
-                  <div key={job.jobId} data-job-id={job.jobId}>
+                {paginatedJobs.map((job, i) => (
+                  <div key={job.jobId} data-job-id={job.jobId} data-tour={i === 0 ? "job-card" : undefined}>
                     <JobCard
                       job={job}
                       active={job.jobId === selectedJobId}
@@ -437,6 +448,14 @@ export function JobListPage() {
 
       <ResumeUpload open={resumeOpen} onClose={() => setResumeOpen(false)} />
       <AccessGate viewer={viewer} />
+      <OnboardingTour
+        ready={canLoad && !loading && paginatedJobs.length > 0}
+        hasResume={hasResume}
+        resumeOpen={resumeOpen}
+        onOpenResume={() => setResumeOpen(true)}
+        onOpenFirstJob={openFirstJob}
+        startRequest={tourRequest}
+      />
     </div>
   );
 }

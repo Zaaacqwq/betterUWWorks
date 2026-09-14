@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { usePopover } from "@/hooks/use-popover";
-import { BookmarkIcon, DocumentIcon, MoreIcon, PeopleIcon, RefreshIcon, TrashIcon } from "./icons";
+import { BookmarkIcon, DocumentIcon, MoreIcon, PeopleIcon, RefreshIcon, SparklesIcon, TrashIcon } from "./icons";
 import { useTheme } from "@/hooks/use-theme";
 import { ExtractionStatus } from "./extraction-status";
 import { useViewer } from "@/hooks/use-viewer";
@@ -25,6 +25,7 @@ interface AppHeaderProps {
   clearError: string | null;
   onClearAll: () => void;
   onCancelClear: () => void;
+  onStartTour: () => void;
 }
 
 const HEADER_BUTTON =
@@ -48,6 +49,7 @@ export function AppHeader({
 
         <nav className="flex items-center gap-1">
           <button
+            data-tour="saved"
             onClick={onToggleSaved}
             aria-pressed={showSavedOnly}
             className={`${HEADER_BUTTON} ${
@@ -60,7 +62,7 @@ export function AppHeader({
               <span className={`tabular-nums ${showSavedOnly ? "text-primary" : "text-steel"}`}>{savedCount}</span>
             )}
           </button>
-          <button onClick={onOpenResume} className={`${HEADER_BUTTON} text-charcoal hover:bg-surface`}>
+          <button data-tour="resume" onClick={onOpenResume} className={`${HEADER_BUTTON} text-charcoal hover:bg-surface`}>
             {hasResume ? (
               <>
                 <span className="w-[7px] h-[7px] rounded-full bg-good" aria-hidden />
@@ -87,7 +89,8 @@ function HeaderMenu({
   clearError,
   onClearAll,
   onCancelClear,
-}: Pick<AppHeaderProps, "onRefresh" | "catalogTotal" | "clearState" | "clearError" | "onClearAll" | "onCancelClear">) {
+  onStartTour,
+}: Pick<AppHeaderProps, "onRefresh" | "catalogTotal" | "clearState" | "clearError" | "onClearAll" | "onCancelClear" | "onStartTour">) {
   // Closing the menu backs out of a pending delete confirmation.
   const { open, setOpen, ref } = usePopover(onCancelClear);
   // Deleting, starting readings and letting people in are the owner's;
@@ -122,6 +125,18 @@ function HeaderMenu({
           >
             <RefreshIcon className="w-4 h-4 text-steel" />
             Refresh jobs
+          </button>
+
+          <button
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onStartTour();
+            }}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] text-charcoal hover:bg-surface"
+          >
+            <SparklesIcon className="w-4 h-4 text-steel" />
+            Take the tour
           </button>
 
           <ThemeSwitch />

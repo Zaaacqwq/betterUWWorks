@@ -21,6 +21,7 @@ export function MatchRing({ score, size = 32 }: MatchRingProps) {
       className={`shrink-0 ${TONE_TEXT[matchTone(score)]}`}
       role="img"
       aria-label={`${score}% match`}
+      data-match-ring=""
     >
       <circle cx={center} cy={center} r={radius} fill="none" stroke="var(--hairline-soft)" strokeWidth={stroke} />
       <circle
