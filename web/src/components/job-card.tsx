@@ -2,7 +2,7 @@
 
 import type { MatchScore } from "@/lib/resume/types";
 import type { JobSummary } from "./types/job";
-import { deadlineInfo, formatPay, ratingTone, shortDuration, TONE_TEXT } from "@/lib/format";
+import { deadlineInfo, formatPay, PAY_TIER_TEXT, payTier, ratingTone, shortDuration, TONE_TEXT } from "@/lib/format";
 import { payDisplay } from "@/lib/job-details/present";
 import { MatchRing } from "./match-ring";
 import { BookmarkIcon, BuildingIcon, CalendarIcon, PeopleIcon, PinIcon, StarIcon } from "./icons";
@@ -32,13 +32,14 @@ interface JobCardProps {
   onClick: (jobId: string) => void;
 }
 
-// C$ an hour when the pay comes to that, so cards compare at a glance;
-// otherwise the posting's own figure.
-function cardPay(job: JobCardJob): string | null {
+// C$ an hour when the pay comes to that, so cards compare at a glance and
+// can be coloured by tier; otherwise the posting's own figure, uncoloured.
+function cardPay(job: JobCardJob): { text: string; className: string } | null {
   const hourly = formatPay(job.parsedHourlyMin, job.parsedHourlyMax);
-  if (hourly) return `${hourly}/hr`;
+  const tier = payTier(job.parsedHourlyMin, job.parsedHourlyMax);
+  if (hourly && tier) return { text: `${hourly}/hr`, className: PAY_TIER_TEXT[tier] };
   const display = payDisplay(job.aiDetails?.pay ?? null);
-  return display && display.text !== "Not stated" ? display.text : null;
+  return display && display.text !== "Not stated" ? { text: display.text, className: "text-ink" } : null;
 }
 
 // Who and where above the line, the numbers below it: pay first and largest,
@@ -84,18 +85,16 @@ export function JobCard({ job, active, saved, matchScore, onClick }: JobCardProp
       <div className="mt-2.5 pt-2.5 border-t border-hairline-soft space-y-1.5 tabular-nums">
         <div className="flex items-baseline justify-between gap-3">
           {pay ? (
-            <span className="text-[14px] font-semibold text-ink whitespace-nowrap truncate">{pay}</span>
+            <span className={`text-[14px] font-semibold whitespace-nowrap truncate ${pay.className}`}>{pay.text}</span>
           ) : (
             <span className="text-[13px] text-stone whitespace-nowrap">Pay not stated</span>
           )}
           {deadline && (
             <span
-              className={`flex items-center gap-1 text-[12.5px] whitespace-nowrap ${
-                deadline.urgent ? "text-poor font-medium" : deadline.closed ? "text-stone" : "text-slate"
-              }`}
+              className={`flex items-center gap-1 text-[12.5px] whitespace-nowrap ${deadline.closed ? "text-stone" : "text-slate"}`}
             >
               <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
-              {deadline.label}
+              {deadline.closed ? "Closed" : `Closes ${deadline.date}`}
             </span>
           )}
         </div>
@@ -117,6 +116,10 @@ export function JobCard({ job, active, saved, matchScore, onClick }: JobCardProp
               <PeopleIcon className="w-3.5 h-3.5 shrink-0 text-stone" />
               {job.openings} {job.openings === 1 ? "opening" : "openings"}
             </span>
+          )}
+          {/* Under the closing date: how long is left, red within three days. */}
+          {deadline && !deadline.closed && (
+            <span className={`ml-auto whitespace-nowrap font-medium ${TONE_TEXT[deadline.tone]}`}>{deadline.away}</span>
           )}
         </div>
       </div>

@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import type { MatchScore } from "@/lib/resume/types";
 import type { JobDetail } from "./types/job";
-import { deadlineInfo, formatPay, matchTone, TONE_TEXT } from "@/lib/format";
+import { deadlineInfo, formatPay, matchTone, PAY_TIER_TEXT, payTier, TONE_TEXT } from "@/lib/format";
 import { payDisplay } from "@/lib/job-details/present";
 import { BookmarkIcon, CloseIcon, CopyIcon } from "./icons";
 
@@ -102,8 +102,8 @@ function MetricStrip({ job, matchScore }: { job: JobDetail; matchScore?: MatchSc
           key: "deadline",
           label: "Closes",
           value: deadline.date,
-          note: deadline.relative,
-          valueClass: deadline.urgent ? "text-poor" : deadline.closed ? "text-stone" : "",
+          note: deadline.closed ? "closed" : deadline.away.toLowerCase(),
+          valueClass: TONE_TEXT[deadline.tone],
         }
       : { key: "deadline", label: "Closes", value: job.deadline ?? "Not listed", valueClass: "text-stone" }
   );
@@ -134,7 +134,8 @@ function MetricStrip({ job, matchScore }: { job: JobDetail; matchScore?: MatchSc
 // same; otherwise the posting's own figures, and failing those, why there are none.
 function payCell(job: JobDetail): { key: string; label: string; value: React.ReactNode; note?: string; valueClass?: string } {
   const hourly = formatPay(job.parsedHourlyMin, job.parsedHourlyMax);
-  if (hourly) return { key: "pay", label: "Pay", value: hourly, note: "/hr" };
+  const tier = payTier(job.parsedHourlyMin, job.parsedHourlyMax);
+  if (hourly && tier) return { key: "pay", label: "Pay", value: hourly, note: "/hr", valueClass: PAY_TIER_TEXT[tier] };
 
   const display = payDisplay(job.aiDetails?.pay ?? null);
   if (display && display.text !== "Not stated") return { key: "pay", label: "Pay", value: display.text };

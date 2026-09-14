@@ -2,7 +2,7 @@
 
 import type { JobDetail } from "./types/job";
 import { PostingGlance } from "./posting-glance";
-import { deadlineInfo } from "@/lib/format";
+import { deadlineInfo, TONE_TEXT } from "@/lib/format";
 
 interface JobDetailOverviewProps {
   job: JobDetail;
@@ -111,8 +111,8 @@ function KeyFacts({ job }: { job: JobDetail }) {
   if (job.deadline) {
     facts.push({
       label: "Deadline",
-      value: job.deadline,
-      className: deadline?.urgent ? "text-poor font-medium" : deadline?.closed ? "text-stone" : undefined,
+      value: deadline && !deadline.closed ? `${job.deadline} · ${deadline.away}` : job.deadline,
+      className: deadline ? `${TONE_TEXT[deadline.tone]} font-medium` : undefined,
     });
   }
   if (job.region) facts.push({ label: "Region", value: job.region });
