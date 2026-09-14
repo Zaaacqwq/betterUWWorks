@@ -8,8 +8,9 @@ import { expandSkill, normalizeSkill } from "@/lib/resume/skill-utils";
 import type { SkillLevel } from "@/lib/resume/types";
 
 // A skill chip the student can click to say they know it — to add a skill
-// their resume leaves out, or to say how well they know one it has. Used
-// wherever a posting's skills are listed, and in the resume panel.
+// their resume leaves out, to say how well they know one it has, or to take
+// one off: an added skill is removed, one the resume shows is marked as not
+// theirs. Used wherever a posting's skills are listed, and in the resume panel.
 
 export interface MySkill {
   // "resume": the resume shows it; "suggested": the resume only suggests it,
@@ -17,6 +18,8 @@ export interface MySkill {
   source: "resume" | "suggested" | "added" | null;
   // The level the student set; null when they haven't set one.
   level: SkillLevel | null;
+  // The resume shows it, but the student said it isn't theirs.
+  disowned?: boolean;
 }
 
 export function useMySkills(): (name: string) => MySkill {
@@ -28,6 +31,7 @@ export function useMySkills(): (name: string) => MySkill {
       const keys = expandSkill(name).map(normalizeSkill);
       const level = keys.map((k) => skillLevels[k]).find(Boolean) ?? null;
       const onPage = keys.map((k) => onResume.get(k)).find(Boolean);
+      if (onPage && level === "none") return { source: null, level: null, disowned: true };
       if (onPage) return { source: isSuggestion(onPage) && !level ? "suggested" : "resume", level };
       if (keys.some((k) => added.has(k))) return { source: "added", level: level ?? "proficient" };
       return { source: null, level: null };
@@ -68,8 +72,12 @@ export function SkillPick({ name, className, suffix, title, showCheck = true }: 
   }
 
   const choose = (level: SkillLevel) => {
-    if (mine.source === "resume" || mine.source === "suggested") setSkillLevel(name, level);
+    if (mine.source === "resume" || mine.source === "suggested" || mine.disowned) setSkillLevel(name, level);
     else addSkill(name, level);
+    setOpen(false);
+  };
+  const act = (fn: () => void) => () => {
+    fn();
     setOpen(false);
   };
 
@@ -106,7 +114,9 @@ export function SkillPick({ name, className, suffix, title, showCheck = true }: 
               ? `Your resume suggests ${name}. It counts once you say how well you know it.`
               : mine.source
                 ? `${name} is in your skills`
-                : `Add ${name} to your skills`}
+                : mine.disowned
+                  ? `You said ${name} isn't one of your skills`
+                  : `Add ${name} to your skills`}
           </span>
           {LEVELS.map(({ level, label }) => (
             <button
@@ -121,24 +131,15 @@ export function SkillPick({ name, className, suffix, title, showCheck = true }: 
             </button>
           ))}
           {mine.source === "added" && (
-            <button
-              role="menuitem"
-              onClick={() => {
-                removeSkill(name);
-                setOpen(false);
-              }}
-              className="w-full px-3 py-1.5 text-[12.5px] text-poor hover:bg-surface text-left border-t border-hairline-soft mt-1"
-            >
-              Remove from my skills
-            </button>
+            <RemoveItem label="Remove from my skills" onClick={act(() => removeSkill(name))} />
           )}
-          {mine.source === "resume" && mine.level && (
+          {(mine.source === "resume" || mine.source === "suggested") && (
+            <RemoveItem label="I don't have this skill" onClick={act(() => setSkillLevel(name, "none"))} />
+          )}
+          {((mine.source === "resume" && mine.level) || mine.disowned) && (
             <button
               role="menuitem"
-              onClick={() => {
-                setSkillLevel(name, null);
-                setOpen(false);
-              }}
+              onClick={act(() => setSkillLevel(name, null))}
               className="w-full px-3 py-1.5 text-[12.5px] text-slate hover:bg-surface text-left border-t border-hairline-soft mt-1"
             >
               Go by my resume
@@ -147,5 +148,17 @@ export function SkillPick({ name, className, suffix, title, showCheck = true }: 
         </span>
       )}
     </span>
+  );
+}
+
+function RemoveItem({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      role="menuitem"
+      onClick={onClick}
+      className="w-full px-3 py-1.5 text-[12.5px] text-poor hover:bg-surface text-left border-t border-hairline-soft mt-1"
+    >
+      {label}
+    </button>
   );
 }

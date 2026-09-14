@@ -446,11 +446,11 @@ export function JobListPage() {
         </div>
       </div>
 
-      <ResumeUpload open={resumeOpen} onClose={() => setResumeOpen(false)} />
+      <ResumeUpload open={resumeOpen} onClose={() => setResumeOpen(false)} onOpen={() => setResumeOpen(true)} />
       <AccessGate viewer={viewer} />
       <OnboardingTour
         ready={canLoad && !loading && paginatedJobs.length > 0}
-        hasResume={hasResume}
+        hasResume={profile != null}
         resumeOpen={resumeOpen}
         onOpenResume={() => setResumeOpen(true)}
         onOpenFirstJob={openFirstJob}

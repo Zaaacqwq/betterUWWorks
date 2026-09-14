@@ -161,12 +161,18 @@ function toDriveStep(spec: TourStepSpec, intro?: IntroHooks): DriveStep {
     skipMissingElement: spec.optional || spec.inDetail,
     // Only a step the tour itself is waiting to load (the posting it opened)
     // is worth waiting for.
-    waitForElement: spec.inDetail && !spec.optional ? DETAIL_WAIT_MS : undefined,
+    waitForElement: spec.waitMs ?? (spec.inDetail && !spec.optional ? DETAIL_WAIT_MS : undefined),
     popover: {
       title: spec.title,
       description: spec.body,
       side: spec.side,
       align: "start",
+      ...(spec.clickOnNext && {
+        onNextClick: (_el, _step, { driver: tour }) => {
+          document.querySelector<HTMLElement>(spec.clickOnNext!)?.click();
+          tour.moveNext();
+        },
+      }),
     },
   };
   if (!intro) return step;

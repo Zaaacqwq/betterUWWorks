@@ -165,7 +165,7 @@ function SkillsRow({ skills }: { skills: string[] }) {
 
   return (
     <Row label="Skills">
-      <div className="flex flex-wrap gap-1.5">
+      <div data-tour="glance-skills" className="flex flex-wrap gap-1.5">
         {shown.map((skill) => (
           <SkillPick key={skill} name={skill} className="text-xs px-2 py-0.5 rounded-md border border-hairline bg-canvas text-charcoal" />
         ))}

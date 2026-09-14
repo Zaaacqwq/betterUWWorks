@@ -81,7 +81,7 @@ export function ApplicationAdvice({ job }: { job: JobDetail }) {
   if (!profile) return null;
 
   return (
-    <section className="space-y-2.5 pt-5 border-t border-hairline-soft">
+    <section data-tour="advice" className="space-y-2.5 pt-5 border-t border-hairline-soft">
       <div className="flex items-baseline justify-between gap-3">
         <h4 className="text-[13.5px] font-semibold text-ink">Application advice</h4>
         {current.state === "done" && (

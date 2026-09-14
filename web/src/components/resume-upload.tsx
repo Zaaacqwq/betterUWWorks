@@ -9,13 +9,19 @@ import { SkillPick } from "./skill-pick";
 interface ResumeUploadProps {
   open: boolean;
   onClose: () => void;
+  /** Reopen the dialog, from the notice shown when a reading finishes. */
+  onOpen: () => void;
 }
+
+// Shown once the dialog is closed and the reading it started has finished.
+type Notice = { ok: true } | { ok: false; message: string };
+const NOTICE_MS = 12000;
 
 type InputMode = "file" | "text";
 
 const ACCEPT = ".pdf,.doc,.docx,.txt,.md";
 
-export function ResumeUpload({ open, onClose }: ResumeUploadProps) {
+export function ResumeUpload({ open, onClose, onOpen }: ResumeUploadProps) {
   const { resumeText, profile, meta, userInfo, extraSkills, hasResume, setResume, setProfile, setUserInfo, setExtraSkills, clearResume } = useResume();
   const [mode, setMode] = useState<InputMode>("file");
   const [textInput, setTextInput] = useState("");
@@ -24,6 +30,18 @@ export function ResumeUpload({ open, onClose }: ResumeUploadProps) {
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // The dialog stays mounted while closed, so a reading carries on after the
+  // student closes it to browse; this says whether anyone is watching.
+  const openRef = useRef(open);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const handleFile = useCallback(async (file: File) => {
     setParsing(true);
@@ -69,11 +87,14 @@ export function ResumeUpload({ open, onClose }: ResumeUploadProps) {
       const json = await res.json();
       if (json.success) {
         setProfile(json.data);
+        if (!openRef.current) setNotice({ ok: true });
       } else {
         setError(json.error ?? "Failed to analyze resume");
+        if (!openRef.current) setNotice({ ok: false, message: json.error ?? "Couldn't read your resume." });
       }
     } catch {
       setError("Failed to analyze resume");
+      if (!openRef.current) setNotice({ ok: false, message: "Couldn't reach the server to read your resume." });
     } finally {
       setExtracting(false);
     }
@@ -101,7 +122,18 @@ export function ResumeUpload({ open, onClose }: ResumeUploadProps) {
     return () => window.removeEventListener("keydown", handleKey);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open) {
+    return notice ? (
+      <ResumeNotice
+        notice={notice}
+        onView={() => {
+          setNotice(null);
+          onOpen();
+        }}
+        onDismiss={() => setNotice(null)}
+      />
+    ) : null;
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30" onClick={onClose}>
@@ -193,9 +225,15 @@ export function ResumeUpload({ open, onClose }: ResumeUploadProps) {
               )}
 
               {(parsing || extracting) && (
-                <div className="flex items-center gap-2 text-sm text-primary">
-                  <span className="inline-block w-2 h-2 bg-primary rounded-full animate-pulse" />
-                  {parsing ? "Parsing document..." : "Analyzing resume with AI..."}
+                <div className="rounded-lg bg-primary-tint px-3.5 py-3 space-y-1" role="status" aria-live="polite">
+                  <p className="flex items-center gap-2 text-[13px] font-medium text-primary-deep">
+                    <span className="inline-block w-2 h-2 bg-primary rounded-full animate-pulse" />
+                    {parsing ? "Reading the file…" : "Reading your resume with AI…"}
+                  </p>
+                  <p className="text-xs text-slate leading-relaxed">
+                    This usually takes under a minute. You can close this and browse jobs in the meantime — we&apos;ll let
+                    you know when it&apos;s ready.
+                  </p>
                 </div>
               )}
             </>
@@ -590,6 +628,39 @@ function AnswerField({ label, value, onChange }: { label: string; value: Answer;
         <option value="yes">Yes</option>
         <option value="no">No</option>
       </select>
+    </div>
+  );
+}
+
+function ResumeNotice({ notice, onView, onDismiss }: { notice: Notice; onView: () => void; onDismiss: () => void }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed bottom-4 right-4 left-4 sm:left-auto z-50 sm:w-[340px] rounded-xl border border-hairline bg-canvas shadow-[var(--shadow-pop)] px-4 py-3.5 space-y-2.5"
+    >
+      <div className="space-y-0.5">
+        <p className={`text-[13.5px] font-semibold ${notice.ok ? "text-ink" : "text-poor"}`}>
+          {notice.ok ? "Your resume is ready" : "Your resume couldn't be read"}
+        </p>
+        <p className="text-[12.5px] text-slate">
+          {notice.ok ? "Every posting now shows how well it matches your skills." : notice.message}
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={onView}
+          className="h-8 px-3 rounded-lg bg-primary text-on-primary text-[12.5px] font-medium hover:bg-primary-pressed transition-colors"
+        >
+          {notice.ok ? "View resume" : "Try again"}
+        </button>
+        <button
+          onClick={onDismiss}
+          className="h-8 px-3 rounded-lg border border-hairline text-[12.5px] font-medium text-charcoal hover:bg-surface transition-colors"
+        >
+          Dismiss
+        </button>
+      </div>
     </div>
   );
 }

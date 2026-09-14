@@ -12,8 +12,9 @@ export interface Capability {
   level?: SkillLevel;
 }
 
-// "familiar": has used it a little. Set by the student, per skill.
-export type SkillLevel = "proficient" | "familiar";
+// "familiar": has used it a little. "none": the student says they don't have
+// it, whatever the resume says. Set by the student, per skill.
+export type SkillLevel = "proficient" | "familiar" | "none";
 
 export interface ResumeProfile {
   skills: Skill[];

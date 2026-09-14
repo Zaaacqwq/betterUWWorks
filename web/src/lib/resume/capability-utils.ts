@@ -13,7 +13,7 @@ const EVIDENCE_MULTIPLIERS: Record<EvidenceType, number> = {
 
 // A level the student set outweighs what the resume suggests: someone who
 // says they only know a listed skill a little gets half credit for it.
-export const LEVEL_WEIGHT: Record<SkillLevel, number> = { proficient: 1, familiar: 0.5 };
+export const LEVEL_WEIGHT: Record<SkillLevel, number> = { proficient: 1, familiar: 0.5, none: 0 };
 
 export function effectiveWeight(capability: Capability): number {
   if (capability.level) return LEVEL_WEIGHT[capability.level];
@@ -24,12 +24,16 @@ export function effectiveWeight(capability: Capability): number {
 // Skill levels the student has set, keyed by normalizeSkill(name).
 export type SkillLevels = Record<string, SkillLevel>;
 
+// A skill marked "none" is dropped: the student has said the resume is wrong
+// about it, so it counts as missing rather than as a skill worth nothing.
 export function applySkillLevels(capabilities: Capability[], levels: SkillLevels | undefined): Capability[] {
   if (!levels || Object.keys(levels).length === 0) return capabilities;
-  return capabilities.map((c) => {
-    const level = levels[normalizeSkill(c.name)];
-    return level ? { ...c, level } : c;
-  });
+  return capabilities
+    .map((c) => {
+      const level = levels[normalizeSkill(c.name)];
+      return level ? { ...c, level } : c;
+    })
+    .filter((c) => c.level !== "none");
 }
 
 export function buildCapabilityMap(capabilities: Capability[]): Map<string, Capability> {

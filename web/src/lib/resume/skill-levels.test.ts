@@ -24,6 +24,14 @@ describe("skill levels", () => {
     expect(sql.level).toBeUndefined();
   });
 
+  it("drops a skill the student says they don't have, whatever the resume says", () => {
+    const caps = applySkillLevels([cap("Python"), cap("SQL")], { sql: "none" });
+    expect(caps.map((c) => c.name)).toEqual(["Python"]);
+    const result = computeWeightedOverlap(buildCapabilityMap(caps), ["Python", "SQL"]);
+    expect(result.overlap).toBe(0.5);
+    expect(result.missing).toContain("SQL");
+  });
+
   it("counts a skill known only a little for half in the match", () => {
     const map = buildCapabilityMap(applySkillLevels([cap("Python"), cap("SQL")], { sql: "familiar" }));
     const result = computeWeightedOverlap(map, ["Python", "SQL"]);

@@ -15,20 +15,24 @@ describe("selectSteps", () => {
 
   it("numbers the full tour, match steps included, when there is a resume", () => {
     const steps = ids({ segment: "main", hasResume: true, desktop: true });
-    expect(steps).toEqual(["search", "filters", "sort", "card", "match", "facts", "glance", "save", "copy-id", "match-tab", "done"]);
+    expect(steps).toEqual([
+      "search", "filters", "sort", "card", "match", "facts", "glance", "skills", "save", "copy-id", "match-tab", "advice", "done",
+    ]);
   });
 
   it("leaves out the match steps after a skipped upload, so nothing stalls and the count is true", () => {
     const steps = ids({ segment: "main", hasResume: false, desktop: true });
     expect(steps).not.toContain("match");
     expect(steps).not.toContain("match-tab");
+    expect(steps).not.toContain("skills");
+    expect(steps).not.toContain("advice");
     expect(steps).toHaveLength(9);
   });
 
   it("says nothing about a match score it can't show", () => {
     const steps = selectSteps({ segment: "main", hasResume: false, desktop: true });
     for (const s of steps.filter((s) => s.id !== "done")) expect(s.body).not.toMatch(/your match|best matches first|ticked/i);
-    expect(steps.at(-1)?.body).toMatch(/Add your resume/);
+    expect(steps.at(-1)?.body).toMatch(/Once your resume is in/);
   });
 
   it("keeps small screens to the list, where the detail pane isn't beside it", () => {

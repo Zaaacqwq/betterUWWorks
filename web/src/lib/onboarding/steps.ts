@@ -24,6 +24,10 @@ export interface TourStepSpec {
   inDetail?: boolean;
   /** May not be on the page (no match score yet); skipped when absent. */
   optional?: boolean;
+  /** How long to wait for the element to appear before skipping it. */
+  waitMs?: number;
+  /** Clicked on leaving the step with Next, e.g. to open the tab it points at. */
+  clickOnNext?: string;
 }
 
 export const TOUR_STEPS: TourStepSpec[] = [
@@ -101,6 +105,17 @@ export const TOUR_STEPS: TourStepSpec[] = [
     inDetail: true,
   },
   {
+    id: "skills",
+    element: '[data-tour="glance-skills"]',
+    title: "Tell it what you know",
+    body: "Know a skill your resume doesn't show? Click it to add it. Click one you have to say how well you know it, or to take it off — your match scores follow.",
+    side: "left",
+    desktopOnly: true,
+    inDetail: true,
+    needsResume: true,
+    optional: true,
+  },
+  {
     id: "save",
     element: '[data-tour="save"]',
     title: "Save it",
@@ -122,19 +137,32 @@ export const TOUR_STEPS: TourStepSpec[] = [
     id: "match-tab",
     element: '[data-tour="match-tab"]',
     title: "Why this score",
-    body: "See which skills and requirements you meet, and get advice on your application.",
+    body: "Match breakdown shows which skills and requirements you meet. Next opens it.",
     side: "bottom",
     desktopOnly: true,
     inDetail: true,
     needsResume: true,
     optional: true,
+    clickOnNext: '[data-tour="match-tab"]',
+  },
+  {
+    id: "advice",
+    element: '[data-tour="advice"]',
+    title: "Get application advice",
+    body: "Press Get application advice for what to lead with, how to handle the skills you're missing, and what to check before you apply.",
+    side: "top",
+    desktopOnly: true,
+    inDetail: true,
+    needsResume: true,
+    optional: true,
+    waitMs: 3000,
   },
   {
     id: "done",
     title: "You're set",
     body: "↑ and ↓ move through the list, / searches, and Esc closes a posting. Take this tour again any time from the ⋯ menu.",
     bodyWithoutResume:
-      "↑ and ↓ move through the list, / searches, and Esc closes a posting. Add your resume any time from the header to see how well each posting fits you. Take this tour again from the ⋯ menu.",
+      "↑ and ↓ move through the list, / searches, and Esc closes a posting. Once your resume is in, every posting shows how well it fits you — add it any time from the header. Take this tour again from the ⋯ menu.",
   },
 ];
 
