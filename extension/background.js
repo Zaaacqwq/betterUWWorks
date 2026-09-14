@@ -194,6 +194,13 @@ async function scrapeAllPagesInner(tabId) {
     return;
   }
 
+  // jobs.htm opens on the search landing view; the table needs "All Jobs".
+  const shown = await toTab(tabId, "show-all-jobs");
+  if (shown.error) {
+    await setState({ status: "error", statusText: "Error: " + shown.message });
+    return;
+  }
+
   await toTab(tabId, "click-first");
   await sleep(500);
 
@@ -309,8 +316,9 @@ function hasFields(detail) {
 async function fetchSyncedDetailIds() {
   const settings = await chrome.storage.local.get("buwSettings");
   const webUrl = (settings.buwSettings?.webUrl || "").replace(/\/+$/, "");
+  // ok: the answer can be trusted, even when it is "nothing yet".
   if (!webUrl) {
-    return { ids: new Set(), note: "no web app URL set, so nothing can be skipped" };
+    return { ids: new Set(), ok: false, note: "no web app URL set, so nothing can be skipped" };
   }
 
   try {
@@ -319,23 +327,26 @@ async function fetchSyncedDetailIds() {
     if (apiKey) headers["x-api-key"] = apiKey;
 
     const resp = await fetch(`${webUrl}/api/jobs/with-detail`, { headers });
+    if (resp.status === 401 || resp.status === 403) {
+      return { ids: new Set(), ok: false, note: `web app refused the API key (${resp.status}) — check it in Settings; scraping everything` };
+    }
     if (!resp.ok) {
-      return { ids: new Set(), note: `web app answered ${resp.status}, scraping everything` };
+      return { ids: new Set(), ok: false, note: `web app answered ${resp.status}, scraping everything` };
     }
 
     const result = await resp.json();
     const ids = new Set(result?.data?.jobIds || []);
     console.log(`[buw] web app already holds ${ids.size} detail(s)`);
     if (ids.size === 0) {
-      return { ids, note: "web app holds no details yet, scraping everything" };
+      return { ids, ok: true, note: "web app holds no details yet, scraping everything" };
     }
-    return { ids, note: null };
+    return { ids, ok: true, note: null };
   } catch (err) {
     // Being unreachable is not a reason to refuse to scrape — but it does mean
     // hours of avoidable work, so it has to be said out loud rather than
     // quietly turning into a full re-scrape.
     console.error("[buw] could not ask the web app what it already has:", err);
-    return { ids: new Set(), note: `web app unreachable (${err?.message || err}), scraping everything` };
+    return { ids: new Set(), ok: false, note: `web app unreachable (${err?.message || err}), scraping everything` };
   }
 }
 
@@ -359,6 +370,12 @@ async function scrapeDetailsInner(tabId) {
   const ready = await ensureContentScript(tabId);
   if (!ready.ok) {
     await setState({ status: "error", statusText: ready.message });
+    return;
+  }
+
+  const shown = await toTab(tabId, "show-all-jobs");
+  if (shown.error) {
+    await setState({ status: "error", statusText: "Error: " + shown.message });
     return;
   }
 

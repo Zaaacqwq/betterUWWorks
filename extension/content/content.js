@@ -89,6 +89,29 @@
     }
   }
 
+  // jobs.htm opens on the job search landing page (keyword box, My Jobs
+  // folders); the table only appears once "All Jobs" is pressed. The URL is
+  // the same either way, so reopening the page lands on the landing view.
+  function findAllJobsButton() {
+    const label = (el) => el.textContent.replace(/\s+/g, " ").trim().toLowerCase();
+    return [...document.querySelectorAll("button, a, [role='button']")].find(
+      (el) => label(el) === "all jobs" && el.offsetParent !== null
+    );
+  }
+
+  async function showAllJobs() {
+    if (document.querySelector(TABLE_SEL)) return { ok: true };
+    const button = findAllJobsButton();
+    if (!button) return { error: true, message: 'Neither the job table nor an "All Jobs" button is on this page' };
+    activate(button);
+    try {
+      await waitForElement(TABLE_SEL, 30000);
+      return { ok: true, pressed: true };
+    } catch {
+      return { error: true, message: 'Pressed "All Jobs" but the job table did not appear' };
+    }
+  }
+
   // Signature of every job id currently rendered, so we can tell a half-swapped
   // table from a finished one.
   function tableSignature() {
@@ -502,6 +525,10 @@
         sendResponse({ isLast: disabled });
         return false;
       }
+
+      case "show-all-jobs":
+        showAllJobs().then(sendResponse);
+        return true;
 
       case "click-first": {
         const items = document.querySelectorAll(".pagination__item");

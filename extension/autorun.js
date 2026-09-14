@@ -118,7 +118,15 @@ async function startAutoRun(trigger) {
     return { ok: false, error: why };
   }
 
+  // Without the web app's list every posting looks new: hours of scraping,
+  // and a sync that would be refused for the same reason. Stop and say so.
   const before = await fetchSyncedDetailIds();
+  if (!before.ok) {
+    const why = `Can't ask the web app what it already has: ${before.note.replace(/, scraping everything$/, "")}. Fix the Web app URL or API key in Settings.`;
+    await setAutoRun({ lastRun: { at: Date.now(), ok: false, message: why } });
+    await notify("WaterlooWorks daily run can't start", why, 4);
+    return { ok: false, error: why };
+  }
   await setAutoRun({
     phase: "open",
     afterOpen: "list",
@@ -186,12 +194,14 @@ async function loadInRunTab(url) {
   return getTab(tab.id);
 }
 
+// Reopening jobs.htm lands on the search view, not the table: press "All
+// Jobs", which may take a moment to be drawn after the page loads.
 async function waitForJobTable(tabId) {
   const ready = await ensureContentScript(tabId);
   if (!ready.ok) return false;
   for (let waited = 0; waited < TABLE_WAIT_MS; waited += 3000) {
-    const ping = await toTab(tabId, "ping", undefined, 10000);
-    if (ping?.hasTable) return true;
+    const shown = await toTab(tabId, "show-all-jobs", undefined, 40000);
+    if (shown?.ok) return true;
     await sleep(3000);
   }
   return false;
@@ -215,7 +225,7 @@ const STEPS = {
     if (!(await waitForJobTable(tab.id))) {
       await finishAutoRun(
         false,
-        `The job list didn't appear at ${run.listUrl}. Open the job list by hand and press Scrape job list once so the daily run learns the page.`
+        `The job table didn't appear at ${run.listUrl}, even after pressing "All Jobs". Open it by hand and press Scrape job list once so the daily run learns the page.`
       );
       return "stop";
     }
