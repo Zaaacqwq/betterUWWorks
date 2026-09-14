@@ -27,6 +27,12 @@ for template in "$REPO"/ops/launchd/*.plist; do
       "$template" > "$dest"
   plutil -lint "$dest" > /dev/null
   launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+  # bootout returns before the old job has gone; bootstrapping over it fails
+  # with "Input/output error".
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    launchctl print "gui/$(id -u)/$label" > /dev/null 2>&1 || break
+    sleep 1
+  done
   launchctl bootstrap "gui/$(id -u)" "$dest"
   echo "installed $label"
 done
