@@ -79,3 +79,22 @@ export const jobs = pgTable(
 
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
+
+// Everyone who has signed in with Google (drizzle/0003_app_users.sql). Signing
+// in proves who someone is; `status` is the owner's decision on whether they
+// may see the postings.
+export const USER_STATUSES = ["pending", "approved", "blocked"] as const;
+export type UserStatus = (typeof USER_STATUSES)[number];
+
+export const appUsers = pgTable("app_users", {
+  email: text("email").primaryKey(),
+  name: text("name"),
+  image: text("image"),
+  status: text("status").$type<UserStatus>().notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  decidedBy: text("decided_by"),
+});
+
+export type AppUser = typeof appUsers.$inferSelect;

@@ -10,6 +10,8 @@ import { useResume } from "@/hooks/use-resume";
 import { useMatchScores } from "@/hooks/use-match-scores";
 import { ResumeUpload } from "./resume-upload";
 import { AppHeader, type ClearState } from "./app-header";
+import { AccessGate } from "./access-gate";
+import { useViewer } from "@/hooks/use-viewer";
 import { ChevronLeftIcon } from "./icons";
 import type { JobSummary, Filters } from "./types/job";
 
@@ -69,6 +71,11 @@ export function JobListPage() {
     locations: [], levels: [], arrangements: [], durations: [], workTerms: [], jobTypes: [],
   });
 
+  // Nothing is asked for until the viewer has been let in: the server would
+  // refuse it, and the access card covers the list meanwhile.
+  const viewer = useViewer();
+  const canLoad = viewer.status === "approved";
+
   const { savedIds, toggle: toggleSave, isSaved, count: savedCount } = useSavedJobs();
   const { profile, hasResume, userInfo, extraSkills, skillLevels } = useResume();
   const { scores } = useMatchScores(profile, userInfo, jobs, extraSkills, skillLevels);
@@ -78,6 +85,7 @@ export function JobListPage() {
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!canLoad) return;
     fetch("/api/jobs/filters")
       .then((r) => r.json())
       .then((data) => {
@@ -90,7 +98,7 @@ export function JobListPage() {
           ],
         });
       });
-  }, []);
+  }, [canLoad]);
 
   const fetchJobs = useCallback(() => {
     abortRef.current?.abort();
@@ -126,8 +134,8 @@ export function JobListPage() {
   }, [query, filters]);
 
   useEffect(() => {
-    fetchJobs();
-  }, [fetchJobs]);
+    if (canLoad) fetchJobs();
+  }, [fetchJobs, canLoad]);
 
   const fetchCatalogTotal = useCallback(() => {
     fetch("/api/jobs?limit=1")
@@ -139,8 +147,8 @@ export function JobListPage() {
   }, []);
 
   useEffect(() => {
-    fetchCatalogTotal();
-  }, [fetchCatalogTotal]);
+    if (canLoad) fetchCatalogTotal();
+  }, [fetchCatalogTotal, canLoad]);
 
   const handleRefresh = useCallback(() => {
     fetchJobs();
@@ -428,6 +436,7 @@ export function JobListPage() {
       </div>
 
       <ResumeUpload open={resumeOpen} onClose={() => setResumeOpen(false)} />
+      <AccessGate viewer={viewer} />
     </div>
   );
 }

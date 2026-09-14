@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { requireAdmin } from "@/lib/auth/viewer";
 import { countPending, runPending, type Extractor } from "./runner";
 
 const MAX_BATCH = 50;
@@ -20,10 +21,8 @@ export async function handleExtractionRequest<P extends { jobId: string }>(
 ): Promise<Response> {
   // Same guard as the import: every call spends model time, and olderThan can
   // ask for the whole table again.
-  const expectedKey = process.env.API_KEY;
-  if (expectedKey && request.headers.get("x-api-key") !== expectedKey) {
-    return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
+  const refusal = requireAdmin(request);
+  if (refusal) return refusal;
 
   const raw = await request.json().catch(() => ({}));
   const parsed = bodySchema.safeParse(raw ?? {});

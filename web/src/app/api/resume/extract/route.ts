@@ -1,5 +1,6 @@
 import { generateText } from "ai";
 import { models, FAST_OPTIONS } from "@/lib/ai/provider";
+import { takeAiQuota } from "@/lib/ai/quota";
 import { RESUME_EXTRACT_SYSTEM, resumeExtractPrompt } from "@/lib/ai/prompts";
 import { AiJsonError, parseAiJson } from "@/lib/ai/json";
 import type { Capability, EvidenceType, ResumeProfile, Skill } from "@/lib/resume/types";
@@ -65,6 +66,9 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+
+  const refusal = takeAiQuota(request, "resume");
+  if (refusal) return refusal;
 
   const { text: raw } = await generateText({
     model: models.fast,

@@ -9,6 +9,7 @@ import { skillExtractor } from "@/lib/job-skills/run";
 import { detailExtractor } from "@/lib/job-details/run";
 import { summaryExtractor } from "@/lib/job-summary/run";
 import { sql, type SQL } from "drizzle-orm";
+import { requireAdmin } from "@/lib/auth/viewer";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 // A row synced without its detail — the extension skips gathering details the
@@ -28,14 +29,9 @@ const DETAIL_SOURCE_CHANGED = sql`(${SKILL_SOURCE_CHANGED} or ${jobs.location} i
 const staleUnless = (changed: SQL, column: AnyPgColumn) => sql`case when ${changed} then null else ${column} end`;
 
 export async function POST(request: NextRequest) {
-  const apiKey = request.headers.get("x-api-key");
-  const expectedKey = process.env.API_KEY;
-  if (expectedKey && apiKey !== expectedKey) {
-    return Response.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
-  }
+  // The extension syncs with the API key; only the owner may overwrite postings.
+  const refusal = requireAdmin(request);
+  if (refusal) return refusal;
 
   let body: unknown;
   try {

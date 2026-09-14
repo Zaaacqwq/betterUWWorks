@@ -9,7 +9,7 @@ import type { ExtractionStatus as Status } from "@/app/api/jobs/extraction-statu
 
 const POLL_MS = 4000;
 
-export function ExtractionStatus() {
+export function ExtractionStatus({ canStart }: { canStart: boolean }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [error, setError] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -79,7 +79,7 @@ export function ExtractionStatus() {
       {status.withoutDetail > 0 && (
         <p className="text-[11px] text-stone">{status.withoutDetail} postings have no details scraped yet.</p>
       )}
-      {(waiting > 0 || failed > 0) && (
+      {canStart && (waiting > 0 || failed > 0) && (
         <div className="flex gap-1.5 pt-0.5">
           {waiting > 0 && (
             <button

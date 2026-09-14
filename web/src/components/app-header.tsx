@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
+import { signOut } from "next-auth/react";
 import { usePopover } from "@/hooks/use-popover";
-import { BookmarkIcon, DocumentIcon, MoreIcon, RefreshIcon, TrashIcon } from "./icons";
+import { BookmarkIcon, DocumentIcon, MoreIcon, PeopleIcon, RefreshIcon, TrashIcon } from "./icons";
 import { useTheme } from "@/hooks/use-theme";
 import { ExtractionStatus } from "./extraction-status";
+import { useViewer } from "@/hooks/use-viewer";
 import type { ThemeChoice } from "@/lib/theme";
 
 export type ClearState = "idle" | "confirming" | "clearing";
@@ -88,6 +91,10 @@ function HeaderMenu({
 }: Pick<AppHeaderProps, "onRefresh" | "catalogTotal" | "clearState" | "clearError" | "onClearAll" | "onCancelClear">) {
   // Closing the menu backs out of a pending delete confirmation.
   const { open, setOpen, ref } = usePopover(onCancelClear);
+  // Deleting, starting readings and letting people in are the owner's;
+  // friends get the rest.
+  const viewer = useViewer();
+  const { isAdmin } = viewer;
 
   return (
     <div ref={ref} className="relative">
@@ -120,37 +127,64 @@ function HeaderMenu({
 
           <ThemeSwitch />
 
+          {isAdmin && (
+            <Link
+              role="menuitem"
+              href="/admin"
+              onClick={() => setOpen(false)}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] text-charcoal hover:bg-surface"
+            >
+              <PeopleIcon className="w-4 h-4 text-steel" />
+              Manage access
+            </Link>
+          )}
+
+          {viewer.email && (
+            <button
+              role="menuitem"
+              onClick={() => signOut({ redirectTo: "/" })}
+              className="w-full flex flex-col items-start px-2.5 py-2 rounded-md text-[13px] text-charcoal text-left hover:bg-surface"
+            >
+              Sign out
+              <span className="text-[11.5px] text-stone truncate max-w-full">{viewer.email}</span>
+            </button>
+          )}
+
           <div className="my-1 border-t border-hairline-soft" />
 
-          <ExtractionStatus />
+          <ExtractionStatus canStart={isAdmin} />
 
-          <div className="my-1 border-t border-hairline-soft" />
+          {isAdmin && (
+            <>
+              <div className="my-1 border-t border-hairline-soft" />
 
-          <button
-            role="menuitem"
-            onClick={onClearAll}
-            disabled={clearState === "clearing" || !catalogTotal}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-              clearState === "confirming"
-                ? "bg-poor text-white hover:bg-poor/90"
-                : "text-poor hover:bg-error/5"
-            }`}
-          >
-            <TrashIcon className="w-4 h-4 shrink-0" />
-            {clearState === "clearing"
-              ? "Deleting…"
-              : clearState === "confirming"
-                ? `Click again to delete all ${catalogTotal}`
-                : catalogTotal == null
-                  ? "Delete all jobs…"
-                  : `Delete all ${catalogTotal} jobs…`}
-          </button>
-          <p className={`px-2.5 pt-1 pb-1.5 text-xs ${clearError ? "text-poor" : "text-stone"}`}>
-            {clearError ??
-              (catalogTotal == null
-                ? "Couldn't count the jobs, so delete is off. Refresh to try again."
-                : "A copy of the deleted jobs is kept until the next delete.")}
-          </p>
+              <button
+                role="menuitem"
+                onClick={onClearAll}
+                disabled={clearState === "clearing" || !catalogTotal}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                  clearState === "confirming"
+                    ? "bg-poor text-white hover:bg-poor/90"
+                    : "text-poor hover:bg-error/5"
+                }`}
+              >
+                <TrashIcon className="w-4 h-4 shrink-0" />
+                {clearState === "clearing"
+                  ? "Deleting…"
+                  : clearState === "confirming"
+                    ? `Click again to delete all ${catalogTotal}`
+                    : catalogTotal == null
+                      ? "Delete all jobs…"
+                      : `Delete all ${catalogTotal} jobs…`}
+              </button>
+              <p className={`px-2.5 pt-1 pb-1.5 text-xs ${clearError ? "text-poor" : "text-stone"}`}>
+                {clearError ??
+                  (catalogTotal == null
+                    ? "Couldn't count the jobs, so delete is off. Refresh to try again."
+                    : "A copy of the deleted jobs is kept until the next delete.")}
+              </p>
+            </>
+          )}
         </div>
       )}
     </div>

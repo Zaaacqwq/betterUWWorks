@@ -4,6 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema";
 import { models, FAST_OPTIONS } from "@/lib/ai/provider";
+import { takeAiQuota } from "@/lib/ai/quota";
 import { APPLICATION_ADVICE_SYSTEM, applicationAdvicePrompt } from "@/lib/ai/prompts";
 import { AiJsonError, parseAiJson } from "@/lib/ai/json";
 import { computeMatchScore } from "@/lib/resume/match-engine";
@@ -91,6 +92,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   let advice: ApplicationAdvice = { highlights: [], gaps: [], checks: facts.checks };
   if (facts.matched.length > 0 || facts.missing.length > 0) {
+    const refusal = takeAiQuota(request, "match");
+    if (refusal) return refusal;
     const prompt = applicationAdvicePrompt({
       title: job.title,
       organization: job.organization,

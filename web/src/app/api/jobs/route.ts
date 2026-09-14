@@ -4,6 +4,7 @@ import { jobs } from "@/db/schema";
 import { sql, ilike, and, SQL, desc, asc, gte, inArray, or } from "drizzle-orm";
 import { REQUIREMENT_KINDS, type RequirementKind } from "@/lib/job-details/types";
 import { listedDetails } from "@/lib/job-details/listed";
+import { requireAdmin } from "@/lib/auth/viewer";
 
 // The job list page fetches every row in one request so it can score and sort
 // against the resume client-side, so this cap has to clear a full term's
@@ -157,6 +158,9 @@ export async function GET(request: NextRequest) {
 // the caller has to name the count it means to delete: that way a stale page
 // cannot clear a batch the user has since imported.
 export async function DELETE(request: NextRequest) {
+  const refusal = requireAdmin(request);
+  if (refusal) return refusal;
+
   const expected = parseInt(request.nextUrl.searchParams.get("expected") || "", 10);
   if (!Number.isInteger(expected) || expected < 0) {
     return Response.json(

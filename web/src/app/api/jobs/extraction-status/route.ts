@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema";
+import { requireAdmin } from "@/lib/auth/viewer";
 import { EXTRACTIONS } from "@/lib/extraction/extractors";
 import { clearResting, countPending, resting, runPending } from "@/lib/extraction/runner";
 
@@ -39,20 +40,17 @@ async function status(): Promise<ExtractionStatus> {
   return { total: counts.total, withoutDetail: counts.withoutDetail, kinds };
 }
 
-function authorized(request: Request): boolean {
-  const expectedKey = process.env.API_KEY;
-  return !expectedKey || request.headers.get("x-api-key") === expectedKey;
-}
-
-export async function GET(request: Request) {
-  if (!authorized(request)) return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
+// Progress is only counts, so every viewer may read it; starting a reading
+// spends model time across the table and is the owner's call.
+export async function GET() {
   return Response.json({ success: true, data: await status() });
 }
 
 // Reads every waiting posting, in the background; with { retryFailed: true },
 // failed ones too, without waiting out their rest.
 export async function POST(request: Request) {
-  if (!authorized(request)) return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  const refusal = requireAdmin(request);
+  if (refusal) return refusal;
   const body = await request.json().catch(() => ({}));
   if (body?.retryFailed === true) EXTRACTIONS.forEach(({ extractor }) => clearResting(extractor.name));
 

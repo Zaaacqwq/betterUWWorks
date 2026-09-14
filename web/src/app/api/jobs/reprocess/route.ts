@@ -3,12 +3,16 @@ import { jobs } from "@/db/schema";
 import { extractDetailFields } from "@/lib/extract-detail";
 import { extractRatingsData } from "@/lib/extract-ratings";
 import { eq } from "drizzle-orm";
+import { requireAdmin } from "@/lib/auth/viewer";
 
 // Re-derives every field that is read straight out of the scraped detail, for
 // when that reading changes. Pay is not among them: it is extracted by the
 // model and checked against the posting (lib/job-details), because the old
 // pattern matching both missed common formats and got some badly wrong.
-export async function POST() {
+export async function POST(request: Request) {
+  const refusal = requireAdmin(request);
+  if (refusal) return refusal;
+
   const allJobs = await db
     .select({
       id: jobs.id,

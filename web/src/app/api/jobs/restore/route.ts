@@ -1,11 +1,15 @@
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
+import { requireAdmin } from "@/lib/auth/viewer";
 
 // Puts back what the last clear removed. The snapshot is whatever DELETE
 // /api/jobs copied aside before emptying the table, so this undoes exactly one
 // clear — enough for the case it exists for, which is realising immediately
 // that the click was a mistake.
-export async function POST() {
+export async function POST(request: Request) {
+  const refusal = requireAdmin(request);
+  if (refusal) return refusal;
+
   const [{ exists }] = (await db.execute(
     sql`select to_regclass('public.jobs_snapshot') is not null as exists`
   )).rows as unknown as { exists: boolean }[];
@@ -40,7 +44,10 @@ export async function POST() {
   });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const refusal = requireAdmin(request);
+  if (refusal) return refusal;
+
   const [{ exists }] = (await db.execute(
     sql`select to_regclass('public.jobs_snapshot') is not null as exists`
   )).rows as unknown as { exists: boolean }[];
