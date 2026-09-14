@@ -416,6 +416,9 @@
     const webUrl = inputWebUrl.value.trim().replace(/\/+$/, "");
     const apiKey = inputApiKey.value.trim();
     if (!webUrl) return showTest("Enter the web app URL first.", "bad");
+    if (apiKey.startsWith("sk-")) {
+      return showTest("That's an AI provider key (sk-…). This field wants the web app's own API_KEY: 64 letters and digits.", "bad");
+    }
     btnTestSettings.disabled = true;
     showTest("Checking…");
     try {

@@ -379,9 +379,9 @@
         <input type="url" id="inputWebUrl" class="input" placeholder="http://localhost:3000" autocomplete="off" />
       </div>
       <div class="field">
-        <label for="inputApiKey">API key</label>
-        <input type="password" id="inputApiKey" class="input" placeholder="Leave blank if the web app has none" autocomplete="off" />
-        <span class="hint">Must match API_KEY on the web app. Required when it runs in production.</span>
+        <label for="inputApiKey">Web app key</label>
+        <input type="password" id="inputApiKey" class="input" placeholder="64 letters and digits" autocomplete="off" />
+        <span class="hint">The web app's own API_KEY from web/.env.local on the server — not your AI provider's sk- key.</span>
       </div>
       <div class="field">
         <div class="inline">
