@@ -33,6 +33,12 @@
   const btnSaveSettings = $("btnSaveSettings");
   const savedNote = $("savedNote");
   const linkWebApp = $("linkWebApp");
+  const inputAutoRun = $("inputAutoRun");
+  const inputAutoRunTime = $("inputAutoRunTime");
+  const inputNtfyTopic = $("inputNtfyTopic");
+  const autoLine = $("autoLine");
+  const autoMsg = $("autoMsg");
+  const btnRunNow = $("btnRunNow");
 
   let startTime = null;
   let lastState = null;
@@ -293,65 +299,83 @@
   });
 
   // === Sync to web app ===
+  // The worker does the sync (sync.js), so the daily run and this button send
+  // exactly the same thing.
   btnSync.addEventListener("click", async () => {
-    const settings = await chrome.storage.local.get("buwSettings");
-    const webUrl = settings.buwSettings?.webUrl;
-    if (!webUrl) {
-      openSettings();
-      showNotice("Add the web app URL in Settings, then sync again.", "error");
-      inputWebUrl.focus();
-      return;
-    }
-
-    const data = await bgMsg("export");
-    if (!data?.jobs || data.jobs.length === 0) return;
-
-    const payload = {
-      jobs: data.jobs.map((job) => ({
-        ...job,
-        detail: data.jobDetails[job.jobId] || null,
-      })),
-      batchId: new Date().toISOString(),
-    };
-
     syncing = true;
     btnSync.disabled = true;
     btnSync.textContent = "Syncing…";
-    showNotice(`Syncing ${payload.jobs.length} jobs…`, "active");
-
+    showNotice(`Syncing ${lastState?.jobs?.length || 0} jobs…`, "active");
     try {
-      const headers = { "Content-Type": "application/json" };
-      const apiKey = settings.buwSettings?.apiKey;
-      if (apiKey) headers["x-api-key"] = apiKey;
-
-      const resp = await fetch(`${webUrl}/api/jobs/import`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
-
-      const result = await resp.json();
-
-      if (resp.ok && result.success) {
-        showNotice(`Synced ${result.data.imported} jobs to the web app.`, "success");
+      const result = await bgMsg("sync");
+      if (result?.ok) {
+        showNotice(`Synced ${result.imported} jobs to the web app.`, "success");
       } else {
-        const detail = Array.isArray(result.details)
-          ? result.details
-              .slice(0, 3)
-              .map((d) => `${(d.path || []).join(".")}: ${d.message}`)
-              .join("; ")
-          : "";
-        showNotice(`Sync failed: ${result.error || resp.statusText}${detail ? ` — ${detail}` : ""}`, "error");
-        console.error("[buw] sync failed", result);
+        if (result?.needsSettings) {
+          openSettings();
+          inputWebUrl.focus();
+        }
+        showNotice(result?.error || "Sync failed: the extension did not answer.", "error");
       }
-    } catch (err) {
-      showNotice(`Couldn't reach the web app at ${webUrl} (${err.message}). Is it running?`, "error");
     } finally {
       syncing = false;
       btnSync.textContent = "Sync to web app";
       if (lastState) renderState(lastState);
     }
   });
+
+  // === Daily run ===
+  const PHASE_LABELS = {
+    open: "opening the job list",
+    "sign-in": "waiting for a WaterlooWorks sign-in",
+    list: "scraping the job list",
+    "list-running": "scraping the job list",
+    details: "scraping new postings",
+    "details-running": "scraping new postings",
+    sync: "syncing",
+  };
+
+  function formatWhen(ts) {
+    const d = new Date(ts);
+    const sameDay = d.toDateString() === new Date().toDateString();
+    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return sameDay ? `today ${time}` : `${d.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
+  }
+
+  async function renderAutoRun() {
+    const [run, stored] = await Promise.all([bgMsg("autorun-status"), chrome.storage.local.get("buwSettings")]);
+    const settings = stored.buwSettings || {};
+    const last = run?.lastRun;
+    autoLine.classList.remove("bad");
+    if (run?.phase) {
+      autoLine.textContent = `Running — ${PHASE_LABELS[run.phase] || run.phase}…`;
+    } else {
+      const schedule = settings.autoRun ? `Every day at ${settings.autoRunTime || "06:00"}` : "Off";
+      const lastText = last ? ` · last ${formatWhen(last.at)} ${last.ok ? "✓" : "failed"}` : "";
+      autoLine.textContent = schedule + lastText;
+      autoLine.classList.toggle("bad", !!last && !last.ok);
+    }
+    autoMsg.textContent = last?.message || "";
+    autoMsg.title = last?.message || "";
+    autoMsg.classList.toggle("hidden", !last?.message || !!run?.phase);
+    btnRunNow.disabled = !!run?.phase;
+  }
+
+  btnRunNow.addEventListener("click", async () => {
+    btnRunNow.disabled = true;
+    const result = await bgMsg("run-now");
+    if (result?.ok) {
+      notice = null;
+      startTime = Date.now();
+    } else {
+      showNotice(result?.error || "The daily run did not start.", "error");
+    }
+    renderAutoRun();
+  });
+
+  renderAutoRun();
+  const autoPoll = setInterval(renderAutoRun, 2000);
+  window.addEventListener("unload", () => clearInterval(autoPoll));
 
   // === Settings ===
   function openSettings() {
@@ -373,6 +397,9 @@
     const s = result.buwSettings || {};
     inputWebUrl.value = s.webUrl || "";
     inputApiKey.value = s.apiKey || "";
+    inputAutoRun.checked = !!s.autoRun;
+    inputAutoRunTime.value = s.autoRunTime || "06:00";
+    inputNtfyTopic.value = s.ntfyTopic || "";
     showWebLink(s.webUrl);
   });
 
@@ -383,10 +410,23 @@
       inputWebUrl.focus();
       return;
     }
-    const settings = { webUrl, apiKey: inputApiKey.value.trim() };
+    const ntfyTopic = inputNtfyTopic.value.trim();
+    if (ntfyTopic && !/^[A-Za-z0-9_-]{1,64}$/.test(ntfyTopic)) {
+      showNotice("The ntfy topic can only use letters, digits, - and _ (up to 64).", "error");
+      inputNtfyTopic.focus();
+      return;
+    }
+    const settings = {
+      webUrl,
+      apiKey: inputApiKey.value.trim(),
+      autoRun: inputAutoRun.checked,
+      autoRunTime: inputAutoRunTime.value || "06:00",
+      ntfyTopic,
+    };
     chrome.storage.local.set({ buwSettings: settings }, () => {
       showWebLink(webUrl);
       savedNote.classList.remove("hidden");
+      renderAutoRun();
       setTimeout(() => savedNote.classList.add("hidden"), 2000);
     });
   });

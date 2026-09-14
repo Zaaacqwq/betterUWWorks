@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "betterUWWorks Scraper",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Scrape job postings from WaterlooWorks",
   "permissions": [
     "activeTab",
@@ -13,7 +13,8 @@
   "host_permissions": [
     "https://waterlooworks.uwaterloo.ca/*",
     "http://localhost/*",
-    "http://127.0.0.1/*"
+    "http://127.0.0.1/*",
+    "https://ntfy.sh/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",

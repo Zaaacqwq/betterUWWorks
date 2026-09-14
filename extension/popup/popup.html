@@ -254,6 +254,33 @@
     .settings-actions .btn { flex: 0 0 auto; height: 32px; }
     .saved-note { font-size: 12px; color: var(--good); }
 
+    /* Daily run */
+    .auto {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--hairline-soft);
+      border-radius: 10px;
+    }
+    .auto-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+    .auto-title { font-size: 12px; font-weight: 600; color: var(--charcoal); }
+    .auto-line { font-size: 12px; color: var(--slate); }
+    .auto-line.bad { color: var(--poor); }
+    .auto-msg {
+      font-size: 11.5px;
+      color: var(--steel);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .btn.small { height: 30px; padding: 0 12px; font-size: 12.5px; flex-shrink: 0; }
+    .check { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--charcoal); cursor: pointer; }
+    .check input { accent-color: var(--primary); width: 14px; height: 14px; }
+    .inline { display: flex; align-items: center; gap: 10px; }
+    .inline .input { width: 110px; }
+
     .hidden { display: none !important; }
   </style>
 </head>
@@ -324,6 +351,15 @@
         <button id="btnExport" class="btn" disabled style="flex: none;">Export JSON</button>
       </div>
     </div>
+
+    <div class="auto">
+      <div class="auto-text">
+        <div class="auto-title">Daily run</div>
+        <div class="auto-line" id="autoLine">Off — turn it on in Settings.</div>
+        <div class="auto-msg hidden" id="autoMsg"></div>
+      </div>
+      <button id="btnRunNow" class="btn small" title="Open the job list, scrape new postings and sync, as the daily run does">Run now</button>
+    </div>
   </main>
 
   <footer class="footer">
@@ -342,7 +378,19 @@
       <div class="field">
         <label for="inputApiKey">API key</label>
         <input type="password" id="inputApiKey" class="input" placeholder="Leave blank if the web app has none" autocomplete="off" />
-        <span class="hint">Only needed if API_KEY is set on the web app.</span>
+        <span class="hint">Must match API_KEY on the web app. Required when it runs in production.</span>
+      </div>
+      <div class="field">
+        <div class="inline">
+          <label class="check" for="inputAutoRun"><input type="checkbox" id="inputAutoRun" /> Run every day at</label>
+          <input type="time" id="inputAutoRunTime" class="input" value="06:00" aria-label="Daily run time" />
+        </div>
+        <span class="hint">Reopens the job list you last scraped, fetches new postings and syncs. Chrome has to be open.</span>
+      </div>
+      <div class="field">
+        <label for="inputNtfyTopic">ntfy topic</label>
+        <input type="text" id="inputNtfyTopic" class="input" placeholder="A long random name" autocomplete="off" spellcheck="false" />
+        <span class="hint">Gets "sign in needed" alerts and each day's result. Subscribe to the same topic in the ntfy app.</span>
       </div>
       <div class="settings-actions">
         <button id="btnSaveSettings" class="btn">Save</button>

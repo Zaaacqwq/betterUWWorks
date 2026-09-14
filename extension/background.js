@@ -1,3 +1,4 @@
+/* global importScripts, syncToWebApp, rememberListUrl, startAutoRun, getAutoRun */
 const DEFAULT_STATE = {
   status: "idle",
   statusText: "Ready. Navigate to WaterlooWorks job listings.",
@@ -182,6 +183,8 @@ async function scrapeAllPagesInner(tabId) {
   // worth was one unlucky click from being lost. Postings that have since been
   // taken down are pruned once the new list is known.
   const carriedDetails = (await getState()).jobDetails || {};
+  // The page this list came from is the one the daily run reopens.
+  const listUrl = (await chrome.tabs.get(tabId).catch(() => null))?.url;
 
   await setState({ status: "scraping-list", stage: "list", statusText: "Starting...", jobs: [], capturedCount: null, tabId });
 
@@ -277,6 +280,8 @@ async function scrapeAllPagesInner(tabId) {
   if (duplicates > 0) notes.push(`${duplicates} duplicate row(s) skipped`);
   if (missingIds > 0) notes.push(`${missingIds} row(s) had no job id`);
   if (incomplete) notes.push(`incomplete: ${incomplete}`);
+
+  if (!incomplete) await rememberListUrl(listUrl);
 
   await setState({
     status: incomplete ? "error" : "done",
@@ -645,7 +650,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       getState().then((s) => sendResponse({ jobs: s.jobs, jobDetails: s.jobDetails }));
       return true;
 
+    case "sync":
+      syncToWebApp().then(sendResponse);
+      return true;
+
+    case "run-now":
+      startAutoRun("manual").then(sendResponse);
+      return true;
+
+    case "autorun-status":
+      getAutoRun().then(sendResponse);
+      return true;
+
     default:
       return false;
   }
 });
+
+// Last, so everything above is defined before these run: they share this
+// worker's global scope and call into it.
+importScripts("sync.js", "autorun.js");
