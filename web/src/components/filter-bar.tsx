@@ -201,8 +201,8 @@ function MultiSelectChip({
                   onChange={() => toggle(o.value)}
                   className="w-3.5 h-3.5 accent-primary shrink-0"
                 />
-                <span className="text-[12.5px] text-charcoal truncate min-w-0">{optName}</span>
-                {count && <span className="ml-auto text-xs text-stone tabular-nums">{count}</span>}
+                <span className="text-[12.5px] leading-snug text-charcoal min-w-0">{optName}</span>
+                {count && <span className="ml-auto pl-2 shrink-0 text-xs text-stone tabular-nums">{count}</span>}
               </label>
             );
           })}
@@ -306,9 +306,11 @@ function CheckGroup({
     onChange((selected.includes(val) ? selected.filter((s) => s !== val) : [...selected, val]).join(","));
 
   return (
-    <fieldset>
+    // min-w-0: a fieldset otherwise grows to its widest line (min-inline-size:
+    // min-content) and long option names pushed the counts out of the popover.
+    <fieldset className="min-w-0">
       <legend className="text-xs font-semibold text-charcoal mb-1">{title}</legend>
-      <div className="max-h-32 overflow-y-auto -mx-1">
+      <div className="max-h-48 overflow-y-auto -mx-1">
         {options.map((o) => {
           const { name, count } = splitCount(o.label);
           return (
@@ -319,8 +321,8 @@ function CheckGroup({
                 onChange={() => toggle(o.value)}
                 className="w-3.5 h-3.5 accent-primary shrink-0"
               />
-              <span className="text-[12.5px] text-charcoal truncate min-w-0">{name}</span>
-              {count && <span className="ml-auto text-xs text-stone tabular-nums">{count}</span>}
+              <span className="text-[12.5px] leading-snug text-charcoal min-w-0">{name}</span>
+              {count && <span className="ml-auto pl-2 shrink-0 text-xs text-stone tabular-nums">{count}</span>}
             </label>
           );
         })}
