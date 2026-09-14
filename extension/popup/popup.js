@@ -32,6 +32,8 @@
   const inputApiKey = $("inputApiKey");
   const btnSaveSettings = $("btnSaveSettings");
   const savedNote = $("savedNote");
+  const btnTestSettings = $("btnTestSettings");
+  const testNote = $("testNote");
   const linkWebApp = $("linkWebApp");
   const inputAutoRun = $("inputAutoRun");
   const inputAutoRunTime = $("inputAutoRunTime");
@@ -401,6 +403,36 @@
     inputAutoRunTime.value = s.autoRunTime || "06:00";
     inputNtfyTopic.value = s.ntfyTopic || "";
     showWebLink(s.webUrl);
+  });
+
+  // The API key field is a password box, so a wrong paste is invisible until
+  // a run fails. This asks the web app with exactly what is typed above.
+  function showTest(text, kind) {
+    testNote.textContent = text;
+    testNote.className = "test-note" + (kind ? " " + kind : "");
+  }
+
+  btnTestSettings.addEventListener("click", async () => {
+    const webUrl = inputWebUrl.value.trim().replace(/\/+$/, "");
+    const apiKey = inputApiKey.value.trim();
+    if (!webUrl) return showTest("Enter the web app URL first.", "bad");
+    btnTestSettings.disabled = true;
+    showTest("Checking…");
+    try {
+      const resp = await fetch(`${webUrl}/api/jobs/with-detail`, { headers: apiKey ? { "x-api-key": apiKey } : {} });
+      if (resp.status === 401 || resp.status === 403) {
+        showTest(`The web app refused this API key (${resp.status}). It is ${apiKey.length} characters; the right one is 64.`, "bad");
+      } else if (!resp.ok) {
+        showTest(`The web app answered ${resp.status}.`, "bad");
+      } else {
+        const body = await resp.json();
+        showTest(`Works — the web app holds ${body?.data?.jobIds?.length ?? 0} postings with details. Press Save to keep it.`, "ok");
+      }
+    } catch (err) {
+      showTest(`Couldn't reach ${webUrl} (${err.message}). Is the URL right?`, "bad");
+    } finally {
+      btnTestSettings.disabled = false;
+    }
   });
 
   btnSaveSettings.addEventListener("click", () => {

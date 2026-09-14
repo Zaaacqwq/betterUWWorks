@@ -122,7 +122,7 @@ async function startAutoRun(trigger) {
   // and a sync that would be refused for the same reason. Stop and say so.
   const before = await fetchSyncedDetailIds();
   if (!before.ok) {
-    const why = `Can't ask the web app what it already has: ${before.note.replace(/, scraping everything$/, "")}. Fix the Web app URL or API key in Settings.`;
+    const why = `Can't ask the web app what it already has: ${before.note.replace(/[,;] scraping everything$/, "")}. Fix the Web app URL or API key in Settings.`;
     await setAutoRun({ lastRun: { at: Date.now(), ok: false, message: why } });
     await notify("WaterlooWorks daily run can't start", why, 4);
     return { ok: false, error: why };
