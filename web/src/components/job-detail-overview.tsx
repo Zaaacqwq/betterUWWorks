@@ -99,6 +99,20 @@ function RowValue({ row }: { row: OverviewRow }) {
       </a>
     );
   }
+  if (row.href) {
+    return (
+      <a
+        href={row.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Open in Google Maps"
+        className="group inline-flex items-start gap-1 text-link-blue hover:underline"
+      >
+        <span className="whitespace-pre-line">{row.value}</span>
+        <ExternalIcon />
+      </a>
+    );
+  }
   if (!row.multiline) return <Linkified text={row.value} />;
 
   const lines = row.value.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -118,6 +132,23 @@ function RowValue({ row }: { row: OverviewRow }) {
         </button>
       )}
     </>
+  );
+}
+
+function ExternalIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="w-3.5 h-3.5 mt-[3px] shrink-0 opacity-60 group-hover:opacity-100"
+    >
+      <path d="M7 17L17 7M9 7h8v8" />
+    </svg>
   );
 }
 

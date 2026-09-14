@@ -17,6 +17,8 @@ export interface OverviewRow {
    * Every group shares one grid, so columns line up down the page.
    */
   size: "sm" | "md" | "lg";
+  /** Opens elsewhere when clicked — the address on a map. */
+  href?: string;
 }
 
 export interface OverviewGroup {
@@ -124,6 +126,11 @@ function row(label: string, value: string | number | null | undefined, extra: Pa
   return [{ label, value: String(value), size: "sm", ...extra }];
 }
 
+// A street address is worth a map; "Ontario, Canada" is not.
+export function mapsUrl(address: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address.replace(/\n/g, ", "))}`;
+}
+
 const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 
 // A location note that restates the street address ("Woodstock Location: 1717
@@ -198,7 +205,9 @@ export function buildOverview(job: OverviewSource, deadline: DeadlineNote = {}):
       ...row("Work mode", job.locationArrangement),
       ...row("Region", job.region),
       // The city is part of the address when there is one.
-      ...(address ? row("Address", address, { multiline: true, size: "md" }) : row("City", job.location)),
+      ...(address
+        ? row("Address", address, { multiline: true, size: "md", href: street ? mapsUrl(address) : undefined })
+        : row("City", job.location)),
       ...row("Where", restatesStreet(f.get("job location (if exact address unknown or multiple locations)"), street), {
         multiline: true,
         size: "lg",

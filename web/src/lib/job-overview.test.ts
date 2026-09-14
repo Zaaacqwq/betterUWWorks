@@ -50,6 +50,20 @@ describe("buildOverview", () => {
     expect(labels("location")).toEqual(["Work mode", "Region", "Address", "Getting there"]);
   });
 
+  it("links a street address to Google Maps", () => {
+    const address = groupOf("location")?.rows.find((r) => r.label === "Address");
+    expect(address?.href).toBe(
+      "https://www.google.com/maps/search/?api=1&query=333%20Bay%20St%2C%20Suite%204600%2C%20Toronto%2C%20Ontario%20M5H%202S5%2C%20Canada"
+    );
+  });
+
+  it("doesn't link an address with no street — a province is no place to go", () => {
+    const o = buildOverview(job({ rawDetail: { "Job - Province/State": "Ontario", "Job - Country": "Canada" } }));
+    const address = groupOf("location", o)?.rows.find((r) => r.label === "Address");
+    expect(address?.value).toBe("Ontario\nCanada");
+    expect(address?.href).toBeUndefined();
+  });
+
   it("falls back to the city when the posting gives no address", () => {
     const o = buildOverview(job({ rawDetail: {} }));
     expect(labels("location", o)).toEqual(["Work mode", "Region", "City"]);
