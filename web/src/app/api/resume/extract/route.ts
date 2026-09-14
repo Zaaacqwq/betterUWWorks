@@ -3,6 +3,11 @@ import { models, FAST_OPTIONS } from "@/lib/ai/provider";
 import { takeAiQuota } from "@/lib/ai/quota";
 import { RESUME_EXTRACT_SYSTEM, resumeExtractPrompt } from "@/lib/ai/prompts";
 import { AiJsonError, parseAiJson } from "@/lib/ai/json";
+
+// Every skill comes back with its evidence and the resume's own words for it
+// (prompts.ts), so a skill-heavy resume runs long. The gateway's default cap
+// cut such answers off around 4,000 tokens, mid-string.
+const RESUME_MAX_OUTPUT_TOKENS = 16_000;
 import type { Capability, EvidenceType, ResumeProfile, Skill } from "@/lib/resume/types";
 import { verifiedExperience, verifyCapabilities, type RawCapability } from "@/lib/resume/verify-capabilities";
 
@@ -70,12 +75,26 @@ export async function POST(request: Request) {
   const refusal = takeAiQuota(request, "resume");
   if (refusal) return refusal;
 
-  const { text: raw } = await generateText({
+  const { text: raw, finishReason } = await generateText({
     model: models.fast,
     providerOptions: FAST_OPTIONS,
     system: RESUME_EXTRACT_SYSTEM,
     prompt: resumeExtractPrompt(text.slice(0, 30000)),
+    maxOutputTokens: RESUME_MAX_OUTPUT_TOKENS,
   });
+
+  // Cut off mid-answer: the JSON can't be read, and saying "unterminated
+  // string" helps nobody.
+  if (finishReason === "length") {
+    console.error(`[resume] extraction hit the ${RESUME_MAX_OUTPUT_TOKENS}-token limit after ${raw.length} chars`);
+    return Response.json(
+      {
+        success: false,
+        error: "Your resume lists more than we could read in one pass. Try again, or paste just the skills and experience sections.",
+      },
+      { status: 502 }
+    );
+  }
 
   let profile: ResumeProfile;
   try {

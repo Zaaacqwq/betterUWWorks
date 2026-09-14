@@ -76,6 +76,8 @@ Evidence type rules:
 - DEDUPLICATION: If a skill appears in multiple sections, produce ONE entry with the STRONGEST evidence_type (work_used > project_used > explicit)
 - "mention": for work_used, project_used and explicit, the exact words on the resume that name the skill, copied character for character (e.g. "JS" for JavaScript). Every such skill must have one — a skill you can't point to on the resume is "inferred", with "mention": null.
 - "evidence_source": brief label (e.g. "Experience: SWE @ Google", "Project: Blog Platform", "Skills section")
+- "reasoning": at most 10 words
+- Write the JSON compactly, with no indentation or line breaks — a resume can list a lot of skills
 - "category": programming_language, framework, tool, database, cloud, domain, other
 - Normalize names (e.g. "JS" → "JavaScript", "ML" → "Machine Learning")
 - Do NOT include soft skills or natural languages (communication, teamwork, English, Mandarin)
