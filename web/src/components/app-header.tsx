@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { usePopover } from "@/hooks/use-popover";
@@ -41,9 +42,7 @@ export function AppHeader({
     <header className="bg-canvas border-b border-hairline shrink-0">
       <div className="max-w-[1400px] mx-auto h-14 px-4 sm:px-5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-[26px] h-[26px] rounded-[7px] bg-primary text-on-primary grid place-items-center text-sm font-bold shrink-0">
-            b
-          </div>
+          <Image src="/logo.png" alt="" width={38} height={22} priority className="shrink-0" />
           <h1 className="sr-only min-[440px]:not-sr-only text-[15px] font-semibold text-ink tracking-tight">betterUWWorks</h1>
         </div>
 
