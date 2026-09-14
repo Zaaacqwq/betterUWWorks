@@ -358,7 +358,10 @@ export function JobListPage() {
                 />
               )
             ) : (
-              <div className="grid gap-2">
+              // grid-cols-1 is minmax(0, 1fr). Without it the column widens to a
+              // card's longest unwrapped line — a long employer name that is
+              // meant to be cut short — and pushes every card past the edge.
+              <div className="grid grid-cols-1 gap-2">
                 {paginatedJobs.map((job) => (
                   <div key={job.jobId} data-job-id={job.jobId}>
                     <JobCard
