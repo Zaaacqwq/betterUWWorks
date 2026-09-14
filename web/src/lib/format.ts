@@ -31,13 +31,13 @@ export function matchTone(score: number): Tone {
   return "neutral";
 }
 
-// C$ an hour, judged at the middle of the posting's range. Under $20 is grey;
-// above it the cuts are where postings with pay split into thirds (Sep 2026:
-// $25 and $29.50 across 1,632 postings at $20 or more). Colours follow the
-// owner's reading of pay: green the low third, amber the middle, red the top.
+// C$ an hour, judged at the middle of the posting's range. Under $20 is grey.
+// Green is ordinary co-op pay ($20–30, 1,120 of 1,816 postings with pay in
+// Sep 2026), amber is well above it, and red is kept for pay that is
+// genuinely high — $60 and up, 110 postings — as the owner reads pay.
 export type PayTier = "under" | "low" | "mid" | "high";
 
-export const PAY_TIER_CUTS = { floor: 20, mid: 25, high: 30 } as const;
+export const PAY_TIER_CUTS = { floor: 20, mid: 30, high: 60 } as const;
 
 export function payTier(min: number | null, max: number | null): PayTier | null {
   if (min == null) return null;

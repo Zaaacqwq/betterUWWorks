@@ -2,17 +2,18 @@ import { describe, expect, it } from "vitest";
 import { deadlineInfo, matchTone, payTier } from "./format";
 
 describe("payTier", () => {
-  it("is grey under $20 and splits the rest into three", () => {
+  it("is grey under $20, green to $30, amber to $60, red from $60", () => {
     expect(payTier(18, null)).toBe("under");
     expect(payTier(20, null)).toBe("low");
-    expect(payTier(24.99, null)).toBe("low");
-    expect(payTier(25, null)).toBe("mid");
-    expect(payTier(29.99, null)).toBe("mid");
-    expect(payTier(30, null)).toBe("high");
+    expect(payTier(29.99, null)).toBe("low");
+    expect(payTier(30, null)).toBe("mid");
+    expect(payTier(59.99, null)).toBe("mid");
+    expect(payTier(60, null)).toBe("high");
   });
 
   it("judges a range by its middle", () => {
-    expect(payTier(20, 40)).toBe("high"); // middle 30
+    expect(payTier(20, 40)).toBe("mid"); // middle 30
+    expect(payTier(50, 70)).toBe("high"); // middle 60
     expect(payTier(18, 24)).toBe("low"); // middle 21
     expect(payTier(16, 22)).toBe("under"); // middle 19
   });
