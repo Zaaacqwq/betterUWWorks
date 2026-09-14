@@ -31,5 +31,10 @@ ssh "$HOST" "export PATH=/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/lo
   npm ci --no-audit --no-fund
   npm run build
   launchctl kickstart -k gui/\$(id -u)/com.betteruwworks.web
-  sleep 5
-  curl -fsS -m 20 -o /dev/null http://127.0.0.1:3000/privacy && echo 'web app is up'"
+  # Give the restart up to 30s; a fixed wait sometimes checked too early.
+  for i in \$(seq 1 15); do
+    sleep 2
+    curl -fsS -m 5 -o /dev/null http://127.0.0.1:3000/privacy && { echo 'web app is up'; exit 0; }
+  done
+  echo 'web app did not answer within 30s — see ~/Library/Logs/betteruwworks/web.log' >&2
+  exit 1"
