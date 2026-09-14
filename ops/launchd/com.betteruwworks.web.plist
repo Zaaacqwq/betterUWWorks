@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The web app, served on 127.0.0.1:3000 only. Outside traffic arrives through
+  the Cloudflare Tunnel, behind Cloudflare Access. Installed by
+  ops/bin/install-launchd.sh, which fills in the __PLACEHOLDERS__.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.betteruwworks.web</string>
+  <key>WorkingDirectory</key>
+  <string>__REPO__/web</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>__REPO__/web/node_modules/next/dist/bin/next</string>
+    <string>start</string>
+    <string>-H</string>
+    <string>127.0.0.1</string>
+    <string>-p</string>
+    <string>3000</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>NODE_ENV</key>
+    <string>production</string>
+    <key>PATH</key>
+    <string>__PATH__</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/betteruwworks/web.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/betteruwworks/web.log</string>
+</dict>
+</plist>

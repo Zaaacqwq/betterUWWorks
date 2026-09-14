@@ -2,12 +2,16 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: buw-postgres
+    # Comes back with Docker after a reboot; the web app has no other database.
+    restart: unless-stopped
     environment:
       POSTGRES_USER: buw
-      POSTGRES_PASSWORD: buw_dev_password
+      # The Mac mini sets its own in the environment; the default is for dev.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-buw_dev_password}
       POSTGRES_DB: betteruwworks
     ports:
-      - "5432:5432"
+      # Only this machine: the web app is the database's one client.
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 

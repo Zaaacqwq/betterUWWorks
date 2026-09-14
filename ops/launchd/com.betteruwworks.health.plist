@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hourly: alerts the owner's phone when the site is down or the daily scrape
+  has stopped arriving. Not at load, so a reboot does not alert before the web
+  app has had a chance to start.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.betteruwworks.health</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__REPO__/ops/bin/check-health.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__PATH__</string>
+  </dict>
+  <key>StartInterval</key>
+  <integer>3600</integer>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/betteruwworks/health.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/betteruwworks/health.log</string>
+</dict>
+</plist>
