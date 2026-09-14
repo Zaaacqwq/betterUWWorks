@@ -13,6 +13,15 @@ import { buildOverview, type OverviewGroup, type OverviewRow, type OverviewSecti
 // A long list (every targeted program, say) shows this many lines at first.
 const ROW_LINES_SHOWN = 6;
 
+// One grid for every group — four columns where the pane has room, two where
+// it doesn't — so the facts line up down the page like a spec sheet. A cell's
+// size says how many columns it takes (lib/job-overview.ts).
+const CELL_SPAN: Record<OverviewRow["size"], string> = {
+  sm: "col-span-1",
+  md: "col-span-2",
+  lg: "col-span-2 @2xl:col-span-4",
+};
+
 export function JobDetailOverview({ job }: { job: JobDetail }) {
   const deadline = deadlineInfo(job.deadlineAt);
   const { groups, sections, more } = buildOverview(
@@ -25,13 +34,11 @@ export function JobDetailOverview({ job }: { job: JobDetail }) {
       <PostingGlance job={job} />
 
       {groups.length > 0 && (
-        // Two groups a row once the detail pane has room, whatever the window.
-        <div className="@container">
-          <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-x-8 gap-y-6">
-            {groups.map((group) => (
-              <FactGroup key={group.id} group={group} />
-            ))}
-          </div>
+        // Sized by the detail pane, not the window.
+        <div className="@container space-y-6">
+          {groups.map((group) => (
+            <FactGroup key={group.id} group={group} />
+          ))}
         </div>
       )}
 
@@ -68,11 +75,12 @@ function FactGroup({ group }: { group: OverviewGroup }) {
   return (
     <section aria-labelledby={titleId} className="min-w-0 space-y-1.5">
       <GroupTitle id={titleId}>{group.title}</GroupTitle>
-      <dl className="divide-y divide-hairline-soft border-y border-hairline-soft">
+      {/* dense: a short fact fills the gap a wide one leaves at a row's end. */}
+      <dl className="grid grid-cols-2 @2xl:grid-cols-4 grid-flow-row-dense gap-x-6 border-b border-hairline-soft">
         {group.rows.map((r) => (
-          <div key={r.label} className="grid grid-cols-[104px_minmax(0,1fr)] gap-3 py-2">
-            <dt className="text-[12.5px] text-steel">{r.label}</dt>
-            <dd className={`text-[13px] break-words ${r.valueClass ?? "text-ink"}`}>
+          <div key={r.label} className={`min-w-0 py-2.5 border-t border-hairline-soft ${CELL_SPAN[r.size]}`}>
+            <dt className="text-[12px] text-steel">{r.label}</dt>
+            <dd className={`mt-0.5 text-[13.5px] leading-snug break-words ${r.valueClass ?? "text-ink"}`}>
               <RowValue row={r} />
             </dd>
           </div>

@@ -46,17 +46,30 @@ const labels = (id: string, o = buildOverview(job())) => groupOf(id, o)?.rows.ma
 describe("buildOverview", () => {
   it("puts the address together as one entry in the location group", () => {
     const address = groupOf("location")?.rows.find((r) => r.label === "Address");
-    expect(address).toMatchObject({ multiline: true, value: "333 Bay St, Suite 4600\nToronto, Ontario M5H 2S5\nCanada" });
-    expect(labels("location")).toEqual(["Work mode", "Address", "Region", "Getting there"]);
+    expect(address).toMatchObject({ multiline: true, size: "md", value: "333 Bay St, Suite 4600\nToronto, Ontario M5H 2S5\nCanada" });
+    expect(labels("location")).toEqual(["Work mode", "Region", "Address", "Getting there"]);
   });
 
   it("falls back to the city when the posting gives no address", () => {
     const o = buildOverview(job({ rawDetail: {} }));
-    expect(labels("location", o)).toEqual(["Work mode", "City", "Region"]);
+    expect(labels("location", o)).toEqual(["Work mode", "Region", "City"]);
+  });
+
+  it("drops a location note that only restates the street address", () => {
+    const o = buildOverview(
+      job({
+        rawDetail: {
+          "Job - Address Line One": "1717 Dundas Street",
+          "Job - City": "Woodstock",
+          "Additional Employment Arrangement Location Information": "Woodstock Location: 1717 Dundas Street, Woodstock, ON N4S 7V9",
+        },
+      })
+    );
+    expect(labels("location", o)).toEqual(["Work mode", "Region", "Address"]);
   });
 
   it("gathers how to apply in one place", () => {
-    expect(labels("apply")).toEqual(["Method", "Documents", "Notes", "Employer's ref."]);
+    expect(labels("apply")).toEqual(["Method", "Documents", "Employer's ref.", "Notes"]);
   });
 
   it("marks the deadline with how far away it is and its colour", () => {
@@ -91,7 +104,7 @@ describe("buildOverview", () => {
         },
       })
     );
-    expect(labels("location", o)).toEqual(["Work mode", "City", "Region", "Where"]);
+    expect(labels("location", o)).toEqual(["Work mode", "Region", "City", "Where"]);
   });
 
   it("puts spaces back into the comma-joined document list", () => {

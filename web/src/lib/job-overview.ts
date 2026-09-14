@@ -11,6 +11,12 @@ export interface OverviewRow {
   multiline?: boolean;
   /** Extra classes for the value, e.g. the deadline's urgency colour. */
   valueClass?: string;
+  /**
+   * How much of the group's grid it takes: a short fact one cell, a longer
+   * one (an address, a deadline with its countdown) two, prose the whole row.
+   * Every group shares one grid, so columns line up down the page.
+   */
+  size: "sm" | "md" | "lg";
 }
 
 export interface OverviewGroup {
@@ -115,7 +121,16 @@ export function composeAddress(parts: Partial<Record<keyof typeof ADDRESS_PARTS,
 
 function row(label: string, value: string | number | null | undefined, extra: Partial<OverviewRow> = {}): OverviewRow[] {
   if (value == null || value === "") return [];
-  return [{ label, value: String(value), ...extra }];
+  return [{ label, value: String(value), size: "sm", ...extra }];
+}
+
+const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+// A location note that restates the street address ("Woodstock Location: 1717
+// Dundas Street, …") says nothing the address row doesn't.
+function restatesStreet(note: string | null, street: string | null): string | null {
+  if (!note) return null;
+  return street && squash(note).includes(squash(street)) ? null : note;
 }
 
 // Postings often repeat themselves across fields ("Where" and "Arrangement"
@@ -155,7 +170,7 @@ export function buildOverview(job: OverviewSource, deadline: DeadlineNote = {}):
       ...row("Openings", job.openings),
       ...row("Past hires", job.totalHires ? `${job.totalHires} over the past 9 terms` : null),
       // WaterlooWorks sometimes leaves only its link text here.
-      ...row("For", degrees && !/^view targeted degrees/i.test(degrees) ? degrees : null, { multiline: true }),
+      ...row("For", degrees && !/^view targeted degrees/i.test(degrees) ? degrees : null, { multiline: true, size: "lg" }),
     ],
   };
 
@@ -167,25 +182,32 @@ export function buildOverview(job: OverviewSource, deadline: DeadlineNote = {}):
       ...row("Duration", job.workTermDuration),
       ...row("Apply by", job.deadline ? (deadline.away ? `${job.deadline} · ${deadline.away}` : job.deadline) : null, {
         valueClass: deadline.valueClass,
+        size: "md",
       }),
-      ...row("Start & end", f.get("special work term start/end date considerations"), { multiline: true }),
+      ...row("Start & end", f.get("special work term start/end date considerations"), { multiline: true, size: "lg" }),
     ],
   };
 
-  const address = composeAddress(
-    Object.fromEntries(Object.entries(ADDRESS_PARTS).map(([part, name]) => [part, f.get(name)]))
-  );
+  const parts = Object.fromEntries(Object.entries(ADDRESS_PARTS).map(([part, name]) => [part, f.get(name)]));
+  const address = composeAddress(parts);
+  const street = parts.line1 ?? null;
   const location: OverviewGroup = {
     id: "location",
     title: "Location",
     rows: [
       ...row("Work mode", job.locationArrangement),
-      // The city is part of the address when there is one.
-      ...(address ? row("Address", address, { multiline: true }) : row("City", job.location)),
       ...row("Region", job.region),
-      ...row("Where", f.get("job location (if exact address unknown or multiple locations)"), { multiline: true }),
-      ...row("Arrangement", f.get("additional employment arrangement location information"), { multiline: true }),
-      ...row("Getting there", f.get("transportation and housing"), { multiline: true }),
+      // The city is part of the address when there is one.
+      ...(address ? row("Address", address, { multiline: true, size: "md" }) : row("City", job.location)),
+      ...row("Where", restatesStreet(f.get("job location (if exact address unknown or multiple locations)"), street), {
+        multiline: true,
+        size: "lg",
+      }),
+      ...row("Arrangement", restatesStreet(f.get("additional employment arrangement location information"), street), {
+        multiline: true,
+        size: "lg",
+      }),
+      ...row("Getting there", f.get("transportation and housing"), { multiline: true, size: "lg" }),
     ],
   };
 
@@ -194,12 +216,12 @@ export function buildOverview(job: OverviewSource, deadline: DeadlineNote = {}):
     title: "How to apply",
     rows: [
       ...row("Method", f.get("application method") ?? f.get("application delivery"), { multiline: true }),
-      ...row("Documents", spaceCommas(f.get("application documents required")), { multiline: true }),
-      ...row("Website", f.get("if by website, go to")),
-      ...row("Notes", job.applicationInfo, { multiline: true }),
+      ...row("Documents", spaceCommas(f.get("application documents required")), { multiline: true, size: "md" }),
       ...row("Employer's ref.", f.get("employer internal job number")),
-      ...row("Other IDs", f.get("additional job identifiers"), { multiline: true }),
+      ...row("Website", f.get("if by website, go to"), { size: "md" }),
+      ...row("Other IDs", f.get("additional job identifiers"), { multiline: true, size: "md" }),
       ...row("Service team", job.serviceTeam),
+      ...row("Notes", job.applicationInfo, { multiline: true, size: "lg" }),
     ],
   };
 
