@@ -40,7 +40,7 @@ export function AppHeader({
 }: AppHeaderProps) {
   return (
     <header className="bg-canvas border-b border-hairline shrink-0">
-      <div className="max-w-[1400px] mx-auto h-14 px-4 sm:px-5 flex items-center justify-between gap-3">
+      <div className="h-14 px-4 sm:px-5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <Image src="/logo.png" alt="" width={38} height={22} priority className="shrink-0" />
           <h1 className="sr-only min-[440px]:not-sr-only text-[15px] font-semibold text-ink tracking-tight">betterUWWorks</h1>

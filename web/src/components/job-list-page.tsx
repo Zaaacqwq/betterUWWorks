@@ -321,7 +321,7 @@ export function JobListPage() {
       />
 
       {/* Split panel body */}
-      <div className="flex-1 flex min-h-0 max-w-[1400px] w-full mx-auto min-[1400px]:border-x min-[1400px]:border-hairline">
+      <div className="flex-1 flex min-h-0 w-full">
         {/* Left panel: list */}
         <div
           className={`flex flex-col w-full lg:w-[452px] xl:w-[480px] lg:shrink-0 lg:border-r lg:border-hairline bg-surface ${
