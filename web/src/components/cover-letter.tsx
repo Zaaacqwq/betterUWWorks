@@ -36,6 +36,19 @@ function save(jobId: string, saved: Saved) {
 
 type Status = "idle" | "writing" | "done" | "error";
 
+// Hands the browser a file to save. The link is added and removed at once;
+// the object URL outlives the click just long enough for the save to start.
+function saveFile(data: Blob, name: string) {
+  const url = URL.createObjectURL(data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 const BUTTON =
   "h-8 inline-flex items-center gap-1.5 px-3 rounded-lg text-[12.5px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
@@ -48,6 +61,7 @@ export function CoverLetter({ job }: { job: JobDetail }) {
   const [status, setStatus] = useState<Status>(initial?.text ? "done" : "idle");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [exporting, setExporting] = useState<"pdf" | "docx" | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   if (!hasResume || !resumeText) {
@@ -121,6 +135,33 @@ export function CoverLetter({ job }: { job: JobDetail }) {
     }
   };
 
+  // The PDF and Word libraries are only fetched the first time a file is asked for.
+  const download = async (kind: "pdf" | "docx") => {
+    setExporting(kind);
+    setError(null);
+    try {
+      const { buildLetterPdf, buildLetterDocx, letterFileName } = await import("@/lib/cover-letter-export");
+      const title = `Cover letter — ${job.title}, ${job.organization}`;
+      const name = letterFileName(job, kind);
+      if (kind === "pdf") {
+        const font = await fetch("/fonts/Tinos-Regular.ttf").then((r) => {
+          if (!r.ok) throw new Error("the letter font didn't load");
+          return r.arrayBuffer();
+        });
+        const bytes = await buildLetterPdf(text, font, title);
+        saveFile(new Blob([bytes as BlobPart], { type: "application/pdf" }), name);
+      } else {
+        const { Packer } = await import("docx");
+        saveFile(await Packer.toBlob(buildLetterDocx(text, title)), name);
+      }
+      save(job.jobId, { text, note, at: new Date().toISOString() });
+    } catch (e) {
+      setError(`Couldn't make the ${kind === "pdf" ? "PDF" : "Word file"}${e instanceof Error ? `: ${e.message}` : ""}.`);
+    } finally {
+      setExporting(null);
+    }
+  };
+
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
   const writing = status === "writing";
 
@@ -153,10 +194,28 @@ export function CoverLetter({ job }: { job: JobDetail }) {
           </button>
         )}
         {text && !writing && (
-          <button onClick={copy} className={`${BUTTON} border border-hairline text-charcoal hover:bg-surface`}>
-            <CopyIcon />
-            {copied ? "Copied" : "Copy"}
-          </button>
+          <>
+            <button onClick={copy} className={`${BUTTON} border border-hairline text-charcoal hover:bg-surface`}>
+              <CopyIcon />
+              {copied ? "Copied" : "Copy"}
+            </button>
+            <button
+              onClick={() => download("pdf")}
+              disabled={exporting !== null}
+              className={`${BUTTON} border border-hairline text-charcoal hover:bg-surface`}
+            >
+              <DownloadIcon />
+              {exporting === "pdf" ? "Making PDF…" : "PDF"}
+            </button>
+            <button
+              onClick={() => download("docx")}
+              disabled={exporting !== null}
+              className={`${BUTTON} border border-hairline text-charcoal hover:bg-surface`}
+            >
+              <DownloadIcon />
+              {exporting === "docx" ? "Making Word file…" : "Word"}
+            </button>
+          </>
         )}
         {writing && <span className="text-[12.5px] text-stone animate-pulse">Writing from your resume…</span>}
         {words > 0 && !writing && <span className="text-[12px] text-stone tabular-nums ml-auto">{words} words</span>}
@@ -189,5 +248,13 @@ export function CoverLetter({ job }: { job: JobDetail }) {
         )
       )}
     </div>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="w-3.5 h-3.5">
+      <path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" />
+    </svg>
   );
 }
