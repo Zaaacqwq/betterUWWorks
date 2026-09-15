@@ -4,6 +4,8 @@
   const TABLE_SEL = "table.data-viewer-table";
   const ROW_SEL = "tbody tr";
   const CELL_SEL = "td.table__value";
+  const CARD_SEL = ".doc-viewer__card";
+  const TABLE_MODE_SEL = 'button[aria-label="Table Mode"]';
   // A posting no longer opens in a .modal — it renders into the document
   // viewer's article, which is always present and marked is--visible while a
   // posting is open. The old selector matched nothing, so every detail scrape
@@ -99,17 +101,44 @@
     );
   }
 
+  // WaterlooWorks remembers the last results layout, and a keyword search
+  // always lays its results out as cards — so one search, such as the web
+  // app's Apply link opening a posting by id, leaves "All Jobs" opening as
+  // cards, which have none of the table's columns. Switch back to the table.
+  // The toggle renders alongside the cards and a click while they are still
+  // settling can go unanswered, so wait for it and try a few times.
+  async function ensureTableMode(attempts = 3) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      if (document.querySelector(TABLE_SEL)) return true;
+      let toggle;
+      try {
+        toggle = await waitForElement(TABLE_MODE_SEL, 10000);
+      } catch {
+        return false;
+      }
+      activate(toggle);
+      try {
+        await waitForElement(TABLE_SEL, 5000);
+        return true;
+      } catch {
+        // Not switched yet; press it again.
+      }
+    }
+    return !!document.querySelector(TABLE_SEL);
+  }
+
   async function showAllJobs() {
     if (document.querySelector(TABLE_SEL)) return { ok: true };
     const button = findAllJobsButton();
     if (!button) return { error: true, message: 'Neither the job table nor an "All Jobs" button is on this page' };
     activate(button);
     try {
-      await waitForElement(TABLE_SEL, 30000);
-      return { ok: true, pressed: true };
+      await waitForElement(`${TABLE_SEL}, ${CARD_SEL}`, 30000);
     } catch {
-      return { error: true, message: 'Pressed "All Jobs" but the job table did not appear' };
+      return { error: true, message: 'Pressed "All Jobs" but no results appeared' };
     }
+    if (await ensureTableMode()) return { ok: true, pressed: true };
+    return { error: true, message: 'Pressed "All Jobs" but the results came up as cards and would not switch to the table' };
   }
 
   // Signature of every job id currently rendered, so we can tell a half-swapped
