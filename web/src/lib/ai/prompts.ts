@@ -218,3 +218,59 @@ Advise the student on this application:
 
 Return ONLY this JSON: {"highlights": [{"experience": 1, "skills": ["..."], "why": "..."}], "gaps": [{"skill": "...", "suggestion": "..."}]}`;
 }
+
+// A cover letter drafted from the student's own resume for one posting. Free
+// text the student edits before sending, so it isn't checked like the
+// readings above — the prompt is where fabrication is ruled out.
+export const COVER_LETTER_SYSTEM = `You write cover letters for University of Waterloo co-op students applying through WaterlooWorks. You use only what the student's resume says: never invent an employer, project, number, grade, award or skill. Plain text only — no markdown, no headings.`;
+
+export function coverLetterPrompt(input: {
+  title: string;
+  organization: string;
+  division: string | null;
+  workTerm: string | null;
+  location: string | null;
+  summary: string | null;
+  responsibilities: string | null;
+  requiredSkills: string | null;
+  postingSkills: string[];
+  program: string | null;
+  termNumber: number | null;
+  resumeText: string;
+  note: string | null;
+}): string {
+  const clip = (text: string | null, max: number) => (text && text.length > max ? `${text.slice(0, max)}…` : text);
+  const job = [
+    `JOB: ${input.title} at ${input.organization}${input.division ? ` (${input.division})` : ""}`,
+    input.workTerm && `Work term: ${input.workTerm}`,
+    input.location && `Location: ${input.location}`,
+    input.summary && `What the job is: ${input.summary}`,
+    input.responsibilities && `Responsibilities:\n${clip(input.responsibilities, 2500)}`,
+    input.postingSkills.length > 0 && `Skills the posting names: ${input.postingSkills.join(", ")}`,
+    input.requiredSkills && `Required skills, as written:\n${clip(input.requiredSkills, 1500)}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const student = [
+    input.program && `Program: ${input.program}`,
+    input.termNumber && `This will be their co-op term ${input.termNumber}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return `${job}
+
+STUDENT
+${student ? `${student}\n` : ""}Resume:
+${clip(input.resumeText, 12000)}
+${input.note ? `\nThe student asks: ${input.note}\n` : ""}
+Write the cover letter:
+- 250–350 words in 3–4 short paragraphs, then "Sincerely," and the student's name as it appears at the top of the resume ("[Your name]" if it isn't there).
+- Open with "Dear Hiring Manager," unless the posting names the person to write to.
+- First paragraph: the role and term, and one concrete reason this student fits.
+- Then 2–3 specific experiences or projects from the resume that match what the job asks for, naming the tools they used. Use numbers only where the resume gives them.
+- Where the job asks for something the resume doesn't show, don't claim it — mention related experience or that they're keen to learn it.
+- Don't say where a skill was learned (coursework, a club, a job) unless the resume says so, and don't call experience "adjacent" to something it isn't.
+- Close with their availability for the work term and a thank-you.
+- No address block, no date, no subject line, no markdown.`;
+}

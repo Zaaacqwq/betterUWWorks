@@ -158,6 +158,17 @@ export const TOUR_STEPS: TourStepSpec[] = [
     waitMs: 3000,
   },
   {
+    id: "cover",
+    element: '[data-tour="cover-tab"]',
+    title: "Draft a cover letter",
+    body: "Cover letter writes one for this posting from your resume, to edit and copy. Tell it what to emphasize first if you like.",
+    side: "bottom",
+    desktopOnly: true,
+    inDetail: true,
+    needsResume: true,
+    optional: true,
+  },
+  {
     id: "done",
     title: "You're set",
     body: "↑ and ↓ move through the list, / searches, and Esc closes a posting. Take this tour again any time from the ⋯ menu.",

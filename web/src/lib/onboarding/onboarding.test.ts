@@ -16,7 +16,7 @@ describe("selectSteps", () => {
   it("numbers the full tour, match steps included, when there is a resume", () => {
     const steps = ids({ segment: "main", hasResume: true, desktop: true });
     expect(steps).toEqual([
-      "search", "filters", "sort", "card", "match", "facts", "glance", "skills", "save", "copy-id", "match-tab", "advice", "done",
+      "search", "filters", "sort", "card", "match", "facts", "glance", "skills", "save", "copy-id", "match-tab", "advice", "cover", "done",
     ]);
   });
 

@@ -9,9 +9,10 @@ import { JobDetailRatings } from "./job-detail-ratings";
 import { JobDetailSkeleton } from "./job-detail-skeleton";
 import { MatchBreakdown } from "./match-breakdown";
 import { ApplicationAdvice } from "./application-advice";
+import { CoverLetter } from "./cover-letter";
 import { Kbd } from "./kbd";
 
-type Tab = "overview" | "match" | "ratings";
+type Tab = "overview" | "match" | "ratings" | "cover";
 
 interface JobDetailPanelProps {
   jobId: string | null;
@@ -74,6 +75,7 @@ export function JobDetailPanel({ jobId, saved, matchScore, onToggleSave, onClose
     { id: "overview", label: "Overview" },
     ...(matchScore ? [{ id: "match" as const, label: "Match breakdown" }] : []),
     ...(hasRatings ? [{ id: "ratings" as const, label: "Work term ratings" }] : []),
+    { id: "cover", label: "Cover letter" },
   ];
   const activeTab = tabs.some((t) => t.id === tab) ? tab : "overview";
 
@@ -95,7 +97,7 @@ export function JobDetailPanel({ jobId, saved, matchScore, onToggleSave, onClose
             {tabs.map((t) => (
               <button
                 key={t.id}
-                data-tour={t.id === "match" ? "match-tab" : undefined}
+                data-tour={t.id === "match" ? "match-tab" : t.id === "cover" ? "cover-tab" : undefined}
                 role="tab"
                 aria-selected={activeTab === t.id}
                 onClick={() => setTab(t.id)}
@@ -119,6 +121,7 @@ export function JobDetailPanel({ jobId, saved, matchScore, onToggleSave, onClose
               </div>
             )}
             {activeTab === "ratings" && <JobDetailRatings ratings={job.workTermRatings!} />}
+            {activeTab === "cover" && <CoverLetter key={job.jobId} job={job} />}
           </div>
         </>
       ) : (

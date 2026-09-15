@@ -3,19 +3,21 @@ import { viewerOf } from "@/lib/auth/viewer";
 // Model calls a friend can make in a day, on the owner's key. Counted in this
 // process's memory: there is one server on one machine, and a restart handing
 // everyone a fresh allowance is no great loss.
-export type QuotaKind = "match" | "summary" | "resume";
+export type QuotaKind = "match" | "summary" | "resume" | "cover";
 
 export const DAILY_LIMITS: Record<QuotaKind, number> = {
   match: 40,
   // Only a posting nobody has opened yet costs a call; the rest are cached.
   summary: 60,
   resume: 5,
+  cover: 10,
 };
 
 const LABELS: Record<QuotaKind, string> = {
   match: "application advice",
   summary: "posting summaries",
   resume: "resume readings",
+  cover: "cover letters",
 };
 
 // Allowances turn over at midnight in Waterloo, not UTC.

@@ -22,7 +22,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
     heading: "Your resume",
     body: [
       "When you upload a resume, the file is sent to the server to pull out its text and is not kept. The text is sent to an AI model to list your skills and experience, and that result is saved in your own browser, not on the server.",
-      "Match advice works the same way: your saved profile is sent with each request, read by an AI model, and the answer is kept in your browser. Saved jobs also live only in your browser.",
+      "Match advice and cover letters work the same way: your saved profile or resume text is sent with each request, read by an AI model, and the answer is kept in your browser. Saved jobs also live only in your browser.",
       "Remove your resume in the app, or clear this site's data in your browser, and it is gone.",
     ],
   },
