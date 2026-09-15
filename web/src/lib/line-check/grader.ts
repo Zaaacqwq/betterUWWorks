@@ -41,93 +41,112 @@ const WAIT_TIMEOUT_MS = 90_000;
 type Key = `${string}|${string}`;
 const keyOf = (email: string, jobId: string): Key => `${email}|${jobId}`;
 
-const queues = new Map<string, string[]>();
-const dirty = new Set<string>();
-const inFlight = new Set<Key>();
-const resting = new Map<Key, number>();
-const urgent: { email: string; jobId: string }[] = [];
-const waiters = new Map<Key, (() => void)[]>();
-let owners: string[] | null = null;
-let turn = 0;
-let active = 0;
-let pumping = false;
-let pumpAgain = false;
+// One scheduler per server process. Kept on globalThis because Next can load
+// this module more than once — in the instrumentation hook that restarts it
+// and in the routes that feed it — and two copies would check twice.
+interface GraderState {
+  queues: Map<string, string[]>;
+  dirty: Set<string>;
+  inFlight: Set<Key>;
+  resting: Map<Key, number>;
+  urgent: { email: string; jobId: string }[];
+  waiters: Map<Key, (() => void)[]>;
+  owners: string[] | null;
+  turn: number;
+  active: number;
+  pumping: boolean;
+  pumpAgain: boolean;
+}
+
+const S: GraderState = ((globalThis as { __buwLineGrader?: GraderState }).__buwLineGrader ??= {
+  queues: new Map(),
+  dirty: new Set(),
+  inFlight: new Set(),
+  resting: new Map(),
+  urgent: [],
+  waiters: new Map(),
+  owners: null,
+  turn: 0,
+  active: 0,
+  pumping: false,
+  pumpAgain: false,
+});
 
 /** Something changed for this student (or, with no email, for everyone): look again. */
 export function kick(email?: string): void {
   if (email) {
-    dirty.add(email);
-    if (owners && !owners.includes(email)) owners = null;
+    S.dirty.add(email);
+    if (S.owners && !S.owners.includes(email)) S.owners = null;
   } else {
-    owners = null;
-    queues.clear();
+    S.owners = null;
+    S.queues.clear();
   }
   void pump();
 }
 
 /** Forgets a student's queue, after their resume is deleted. */
 export function forget(email: string): void {
-  queues.delete(email);
-  dirty.delete(email);
-  owners = owners?.filter((o) => o !== email) ?? null;
+  S.queues.delete(email);
+  S.dirty.delete(email);
+  S.owners = S.owners?.filter((o) => o !== email) ?? null;
 }
 
 /** Checks this posting now, ahead of everything else; resolves once it is done or failed. */
 export function checkNow(email: string, jobId: string): Promise<void> {
   const key = keyOf(email, jobId);
-  resting.delete(key);
+  S.resting.delete(key);
   const done = new Promise<void>((resolve) => {
-    const list = waiters.get(key) ?? [];
+    const list = S.waiters.get(key) ?? [];
     list.push(resolve);
-    waiters.set(key, list);
+    S.waiters.set(key, list);
     setTimeout(resolve, WAIT_TIMEOUT_MS);
   });
-  if (!inFlight.has(key)) urgent.push({ email, jobId });
+  if (!S.inFlight.has(key)) S.urgent.push({ email, jobId });
   void pump();
   return done;
 }
 
-export interface GraderState {
+export interface QueueState {
   running: boolean;
   queued: number;
 }
 
-export function graderState(email: string): GraderState {
-  const queued = (queues.get(email)?.length ?? 0) + urgent.filter((u) => u.email === email).length;
-  const running = [...inFlight].some((k) => k.startsWith(`${email}|`));
+export function graderState(email: string): QueueState {
+  const queued = (S.queues.get(email)?.length ?? 0) + S.urgent.filter((u) => u.email === email).length;
+  const running = [...S.inFlight].some((k) => k.startsWith(`${email}|`));
   return { running: running || queued > 0, queued };
 }
 
 async function pump(): Promise<void> {
-  if (pumping) {
-    pumpAgain = true;
+  if (S.pumping) {
+    S.pumpAgain = true;
     return;
   }
-  pumping = true;
+  S.pumping = true;
   try {
     do {
-      pumpAgain = false;
-      while (active < CONCURRENCY) {
+      S.pumpAgain = false;
+      while (S.active < CONCURRENCY) {
         const task = await nextTask();
         if (!task) break;
-        active++;
-        task.jobIds.forEach((id) => inFlight.add(keyOf(task.email, id)));
+        S.active++;
+        task.jobIds.forEach((id) => S.inFlight.add(keyOf(task.email, id)));
         void run(task).finally(() => {
-          active--;
+          S.active--;
           task.jobIds.forEach((id) => {
             const key = keyOf(task.email, id);
-            inFlight.delete(key);
-            waiters.get(key)?.forEach((resolve) => resolve());
-            waiters.delete(key);
+            S.inFlight.delete(key);
+            S.waiters.get(key)?.forEach((resolve) => resolve());
+            S.waiters.delete(key);
           });
           void pump();
         });
       }
-    } while (pumpAgain);
+    } while (S.pumpAgain);
   } catch (err) {
     console.error("[line-check] scheduling failed:", err);
   } finally {
-    pumping = false;
+    S.pumping = false;
   }
 }
 
@@ -137,25 +156,25 @@ interface Task {
 }
 
 async function nextTask(): Promise<Task | null> {
-  while (urgent.length > 0) {
-    const { email, jobId } = urgent.shift()!;
-    if (!inFlight.has(keyOf(email, jobId))) return { email, jobIds: [jobId] };
+  while (S.urgent.length > 0) {
+    const { email, jobId } = S.urgent.shift()!;
+    if (!S.inFlight.has(keyOf(email, jobId))) return { email, jobIds: [jobId] };
   }
 
-  owners ??= await resumeOwners();
-  for (let tried = 0; tried < owners.length; tried++) {
-    const email = owners[turn++ % owners.length];
-    if (dirty.has(email) || !queues.has(email)) {
-      dirty.delete(email);
-      queues.set(email, await buildQueue(email));
+  S.owners ??= await resumeOwners();
+  for (let tried = 0; tried < S.owners.length; tried++) {
+    const email = S.owners[S.turn++ % S.owners.length];
+    if (S.dirty.has(email) || !S.queues.has(email)) {
+      S.dirty.delete(email);
+      S.queues.set(email, await buildQueue(email));
     }
-    const queue = queues.get(email)!;
+    const queue = S.queues.get(email)!;
     const jobIds: string[] = [];
     while (queue.length > 0 && jobIds.length < POSTINGS_PER_CALL) {
       const jobId = queue.shift()!;
       const key = keyOf(email, jobId);
-      const rested = resting.get(key);
-      if (inFlight.has(key) || (rested && Date.now() - rested < FAILURE_REST_MS)) continue;
+      const rested = S.resting.get(key);
+      if (S.inFlight.has(key) || (rested && Date.now() - rested < FAILURE_REST_MS)) continue;
       jobIds.push(jobId);
     }
     if (jobIds.length > 0) return { email, jobIds };
@@ -301,7 +320,7 @@ async function checkBatch(resume: StoredResume, batch: Plan[]): Promise<void> {
     }
     return;
   }
-  for (const { jobId } of remaining) resting.set(keyOf(resume.email, jobId), Date.now());
+  for (const { jobId } of remaining) S.resting.set(keyOf(resume.email, jobId), Date.now());
   if (remaining.length > 0) {
     console.error(`[line-check] ${remaining.length} posting(s) left unchecked for now: ${remaining.map((p) => p.jobId).join(",")}`);
   }

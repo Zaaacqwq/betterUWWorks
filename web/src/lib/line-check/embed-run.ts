@@ -10,14 +10,15 @@ import { EmbedError, embedPostingLines, fromBytes, toBytes } from "./embed";
 const BATCH = 64;
 const OPEN = or(isNull(jobs.deadlineAt), gt(jobs.deadlineAt, sql`now()`));
 
-let embedding: Promise<number> | null = null;
+// One run at a time per process, however many copies of this module Next loads.
+const run = ((globalThis as { __buwEmbedRun?: { current: Promise<number> | null } }).__buwEmbedRun ??= { current: null });
 
 /** Embeds lines still without a vector, open postings first. Resolves to how many were done. */
 export function embedPendingLines(): Promise<number> {
-  embedding ??= embedAll().finally(() => {
-    embedding = null;
+  run.current ??= embedAll().finally(() => {
+    run.current = null;
   });
-  return embedding;
+  return run.current;
 }
 
 async function embedAll(): Promise<number> {
