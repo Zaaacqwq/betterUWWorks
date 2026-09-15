@@ -293,6 +293,14 @@ async function checkBatch(resume: StoredResume, batch: Plan[]): Promise<void> {
     remaining = remaining.filter((p) => !done.has(p.jobId));
   }
 
+  // What a batch still lacks after two tries is asked about one posting at a
+  // time: a long batch is the likeliest to come back cut short or garbled.
+  if (remaining.length > 0 && batch.length > 1) {
+    for (const posting of remaining) {
+      await checkBatch(resume, batch.filter((p) => p.posting.jobId === posting.jobId));
+    }
+    return;
+  }
   for (const { jobId } of remaining) resting.set(keyOf(resume.email, jobId), Date.now());
   if (remaining.length > 0) {
     console.error(`[line-check] ${remaining.length} posting(s) left unchecked for now: ${remaining.map((p) => p.jobId).join(",")}`);
