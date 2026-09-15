@@ -26,7 +26,7 @@ const TIME_ZONE = "America/Toronto";
 const used = new Map<string, number>();
 let usedDay = "";
 
-function today(now: Date): string {
+export function torontoDay(now: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(now);
 }
 
@@ -37,7 +37,7 @@ export function takeAiQuota(request: Request, kind: QuotaKind, now = new Date())
   const viewer = viewerOf(request);
   if (viewer.isAdmin || !viewer.email) return null;
 
-  const day = today(now);
+  const day = torontoDay(now);
   if (day !== usedDay) {
     used.clear();
     usedDay = day;

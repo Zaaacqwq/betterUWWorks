@@ -116,7 +116,7 @@ export function JobDetailPanel({ jobId, saved, matchScore, onToggleSave, onClose
             {activeTab === "overview" && <JobDetailOverview job={job} />}
             {activeTab === "match" && matchScore && (
               <div className="space-y-5">
-                <MatchBreakdown score={matchScore} />
+                <MatchBreakdown score={matchScore} jobId={job.jobId} />
                 <ApplicationAdvice job={job} />
               </div>
             )}

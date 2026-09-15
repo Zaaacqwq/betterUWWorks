@@ -21,9 +21,11 @@ const SECTIONS: { heading: string; body: string[] }[] = [
   {
     heading: "Your resume",
     body: [
-      "When you upload a resume, the file is sent to the server to pull out its text and is not kept. The text is sent to an AI model to list your skills and experience, and that result is saved in your own browser, not on the server.",
-      "Match advice and cover letters work the same way: your saved profile or resume text is sent with each request, read by an AI model, and the answer is kept in your browser. Saved jobs also live only in your browser.",
-      "Remove your resume in the app, or clear this site's data in your browser, and it is gone.",
+      "When you upload a resume, the file is sent to the server to pull out its text; the file itself is not kept. The text is sent to an AI model to list your skills and experience.",
+      "The resume text, that list, your details (program, term, GPA if you give it) and the skills you add are saved on the server under your email, and in your browser. The server keeps them so every open posting can be checked against your resume while you're away, and so your resume follows you to another browser. The site owner runs the server and can see what is stored on it.",
+      "To check a posting, your resume — without your email, phone number or profile links — is sent to an AI model together with the posting's lines. The result, which lines your resume meets and where, is saved on the server under your email.",
+      "Match advice and cover letters send your profile or resume text with each request; their answers are kept only in your browser. Saved jobs also live only in your browser.",
+      "Remove your resume in the app and it is deleted from the server, with every check made against it. If the owner removes your account, your resume goes too.",
     ],
   },
   {
@@ -35,7 +37,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
   {
     heading: "Services involved",
     body: [
-      "Google confirms who you are when you sign in. Cloudflare carries traffic to the site. An AI provider reads resume text and profiles to produce skills and advice. None of them receive anything from this site beyond what is described above.",
+      "Google confirms who you are when you sign in. Cloudflare carries traffic to the site. An AI provider reads resume text, profiles and postings to produce skills, checks and advice. Matching postings to a skill you add also uses a model running on the site's own server, which sends nothing elsewhere. None of them receive anything from this site beyond what is described above.",
     ],
   },
   {

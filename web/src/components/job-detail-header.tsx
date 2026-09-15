@@ -108,7 +108,8 @@ function MetricStrip({ job, matchScore }: { job: JobDetail; matchScore?: MatchSc
     cells.push({
       key: "match",
       label: "Match",
-      value: `${matchScore.score}%`,
+      value: `${matchScore.checked ? "" : "~"}${matchScore.score}%`,
+      note: matchScore.checked ? undefined : "estimate",
       valueClass: TONE_TEXT[matchTone(matchScore.score)],
     });
   }

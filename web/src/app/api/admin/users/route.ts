@@ -2,6 +2,8 @@ import { z } from "zod/v4";
 import { USER_STATUSES } from "@/db/schema";
 import { isAdminEmail, listUsers, removeUser, setStatus } from "@/lib/auth/users";
 import { requireAdmin, viewerOf } from "@/lib/auth/viewer";
+import { deleteResume } from "@/lib/line-check/store";
+import { forget } from "@/lib/line-check/grader";
 
 // The owner's list of everyone who has signed in, and the decisions on it.
 // Behind src/proxy.ts (signed in and approved) and requireAdmin here.
@@ -46,5 +48,9 @@ export async function DELETE(request: Request) {
   }
   const removed = await removeUser(parsed.data.email);
   if (!removed) return Response.json({ success: false, error: `No one has signed in as ${parsed.data.email}.` }, { status: 404 });
+  // Their resume and its checks go with them.
+  const email = parsed.data.email.trim().toLowerCase();
+  await deleteResume(email);
+  forget(email);
   return Response.json({ success: true, data: { email: parsed.data.email } });
 }

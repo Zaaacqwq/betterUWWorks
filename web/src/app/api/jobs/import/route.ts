@@ -8,6 +8,7 @@ import { runPending } from "@/lib/extraction/runner";
 import { skillExtractor } from "@/lib/job-skills/run";
 import { detailExtractor } from "@/lib/job-details/run";
 import { summaryExtractor } from "@/lib/job-summary/run";
+import { lineExtractor } from "@/lib/line-check/tag-run";
 import { sql, type SQL } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth/viewer";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
@@ -135,6 +136,8 @@ export async function POST(request: NextRequest) {
             // The summary reads what the skills do, and is shared by everyone.
             aiSummary: staleUnless(SKILL_SOURCE_CHANGED, jobs.aiSummary),
             aiSummaryAt: staleUnless(SKILL_SOURCE_CHANGED, jobs.aiSummaryAt),
+            // Split and tagged again, and so checked again for every student.
+            linesAt: staleUnless(SKILL_SOURCE_CHANGED, jobs.linesAt),
             workTermRatings: fromDetail(jobs.workTermRatings),
             employerRating: fromDetail(jobs.employerRating),
             employerRatingCount: fromDetail(jobs.employerRatingCount),
@@ -156,6 +159,7 @@ export async function POST(request: NextRequest) {
       runPending(skillExtractor, importedIds.length, { jobIds: importedIds }),
       runPending(detailExtractor, importedIds.length, { jobIds: importedIds }),
       runPending(summaryExtractor, importedIds.length, { jobIds: importedIds }),
+      runPending(lineExtractor, importedIds.length, { jobIds: importedIds }),
     ])
   );
 

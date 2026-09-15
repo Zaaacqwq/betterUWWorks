@@ -50,3 +50,14 @@ if hours="$(docker exec "$CONTAINER" psql -U buw -d betteruwworks -At \
 else
   alert db "betterUWWorks database is unreachable" "docker exec into ${CONTAINER} failed. Is Docker running on the Mac mini?"
 fi
+
+# The embedding model (web/src/lib/line-check/embed.ts) lives on the external
+# Data drive; if the drive isn't mounted, Ollama is up but has no model. The
+# site keeps working without it, only finding lines by name after a skill edit.
+EMBED_MODEL="$(env_value EMBED_MODEL)"
+EMBED_MODEL="${EMBED_MODEL:-qwen3-embedding:8b}"
+if curl -fsS -m 10 http://127.0.0.1:11434/api/tags 2>/dev/null | grep -q "\"$EMBED_MODEL\""; then
+  clear_alert embed
+else
+  alert embed "Embedding model unavailable" "Ollama on the Mac mini is not serving ${EMBED_MODEL}. Is Ollama running and the Data drive mounted?"
+fi

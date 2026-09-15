@@ -49,6 +49,20 @@ export function computeMatchScore(
   };
 }
 
+/**
+ * The score with its skills part replaced by the line-by-line check of the
+ * posting (out of 70). Level and program are worked out the same either way.
+ */
+export function withCheckedSkills(score: MatchScore, checkedSkills: number): MatchScore {
+  const skills = Math.round(checkedSkills);
+  return {
+    ...score,
+    score: skills + score.breakdown.level + score.breakdown.program,
+    breakdown: { ...score.breakdown, skills },
+    checked: true,
+  };
+}
+
 export const SKILL_POINTS = 70;
 
 // How much a posting's skill list can say depends on how long it is: matching

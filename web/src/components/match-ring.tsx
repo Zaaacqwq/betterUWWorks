@@ -3,9 +3,11 @@ import { matchTone, TONE_TEXT } from "@/lib/format";
 interface MatchRingProps {
   score: number;
   size?: number;
+  // Not yet checked line by line: shown as ~score, on a dashed track.
+  estimate?: boolean;
 }
 
-export function MatchRing({ score, size = 32 }: MatchRingProps) {
+export function MatchRing({ score, size = 32, estimate = false }: MatchRingProps) {
   // Thicker and smaller-lettered as it grows, so a big ring stays a ring.
   const stroke = Math.max(3, Math.round(size * 0.085));
   const radius = (size - stroke) / 2;
@@ -20,7 +22,7 @@ export function MatchRing({ score, size = 32 }: MatchRingProps) {
       viewBox={`0 0 ${size} ${size}`}
       className={`shrink-0 ${TONE_TEXT[matchTone(score)]}`}
       role="img"
-      aria-label={`${score}% match`}
+      aria-label={estimate ? `About ${score}% match, estimated` : `${score}% match`}
       data-match-ring=""
     >
       <circle cx={center} cy={center} r={radius} fill="none" stroke="var(--hairline-soft)" strokeWidth={stroke} />
@@ -35,6 +37,7 @@ export function MatchRing({ score, size = 32 }: MatchRingProps) {
         strokeDasharray={circumference}
         strokeDashoffset={circumference * (1 - clamped / 100)}
         transform={`rotate(-90 ${center} ${center})`}
+        opacity={estimate ? 0.55 : 1}
       />
       <text
         x="50%"
@@ -45,6 +48,11 @@ export function MatchRing({ score, size = 32 }: MatchRingProps) {
         fontSize={size * (score >= 100 ? 0.3 : 0.34)}
         fontWeight={600}
       >
+        {estimate && (
+          <tspan fontSize={size * 0.24} fontWeight={500} dy="-0.05em">
+            ~
+          </tspan>
+        )}
         {score}
       </text>
     </svg>

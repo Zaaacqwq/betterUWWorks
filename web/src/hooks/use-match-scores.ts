@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ResumeProfile, UserInfo, MatchScore } from "@/lib/resume/types";
-import { computeMatchScore } from "@/lib/resume/match-engine";
+import { computeMatchScore, withCheckedSkills } from "@/lib/resume/match-engine";
 import type { JobForMatch } from "@/lib/resume/match-engine";
 import type { SkillLevels } from "@/lib/resume/capability-utils";
 
@@ -15,7 +15,10 @@ export function useMatchScores(
   userInfo: UserInfo | null,
   jobs: JobWithId[],
   extraSkills?: string[],
-  skillLevels?: SkillLevels
+  skillLevels?: SkillLevels,
+  // Skills scores checked line by line on the server, by job id: they replace
+  // the name-matching estimate wherever there is one.
+  checkedSkills?: Record<string, number>
 ) {
   const [scores, setScores] = useState<Record<string, MatchScore>>({});
   const computedRef = useRef<Set<string>>(new Set());
@@ -65,10 +68,20 @@ export function useMatchScores(
     }
   }, [profile, userInfo, jobs, extraSkills, skillLevels, userInfoKey, extraSkillsKey]);
 
+  const combined = useMemo(() => {
+    if (!checkedSkills) return scores;
+    const out: Record<string, MatchScore> = {};
+    for (const [jobId, score] of Object.entries(scores)) {
+      const checked = checkedSkills[jobId];
+      out[jobId] = checked == null ? score : withCheckedSkills(score, checked);
+    }
+    return out;
+  }, [scores, checkedSkills]);
+
   const getScore = useCallback(
-    (jobId: string): number | undefined => scores[jobId]?.score,
-    [scores]
+    (jobId: string): number | undefined => combined[jobId]?.score,
+    [combined]
   );
 
-  return { getScore, scores };
+  return { getScore, scores: combined };
 }

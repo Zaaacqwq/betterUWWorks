@@ -5,12 +5,13 @@ import { matchTone, TONE_TEXT } from "@/lib/format";
 import { WarningIcon } from "./icons";
 import { SkillPick } from "./skill-pick";
 import { SKILL_POINTS, TYPICAL_OVERLAP } from "@/lib/resume/match-engine";
+import { LineCheck } from "./line-check";
 
 const neutralSkills = Math.round(TYPICAL_OVERLAP * SKILL_POINTS);
 
 const MAX = { skills: 70, level: 15, program: 15 } as const;
 
-export function MatchBreakdown({ score }: { score: MatchScore }) {
+export function MatchBreakdown({ score, jobId }: { score: MatchScore; jobId: string }) {
   const { breakdown, warnings, debug } = score;
   const skills = debug.skills;
   // "pending" means the posting's skills haven't been extracted yet, so an
@@ -23,10 +24,14 @@ export function MatchBreakdown({ score }: { score: MatchScore }) {
     <div className="space-y-6">
       <div>
         <p className={`text-2xl font-semibold tracking-tight ${TONE_TEXT[matchTone(score.score)]}`}>
+          {score.checked ? "" : "~"}
           {score.score}% match
         </p>
         <p className="text-[13px] text-slate mt-1">
-          Scored against your resume on skills, level and program. It updates when you change your resume or details.
+          Scored against your resume on skills, level and program.{" "}
+          {score.checked
+            ? "Skills come from checking each line of the posting against your resume."
+            : "Skills are an estimate from matching skill names until this posting has been checked line by line."}
         </p>
       </div>
 
@@ -47,9 +52,11 @@ export function MatchBreakdown({ score }: { score: MatchScore }) {
         </ul>
       )}
 
+      <LineCheck key={jobId} jobId={jobId} />
+
       <section className="space-y-2.5">
         <div className="flex items-baseline justify-between gap-3">
-          <h4 className="text-[13.5px] font-semibold text-ink">Skills</h4>
+          <h4 className="text-[13.5px] font-semibold text-ink">Skills named in the posting</h4>
           <span className="text-xs text-stone">
             {pending
               ? "Still being extracted"
@@ -82,7 +89,7 @@ export function MatchBreakdown({ score }: { score: MatchScore }) {
               />
             ))}
           </div>
-        ) : pending ? (
+        ) : score.checked ? null : pending ? (
           <p className="text-[13px] text-slate">
             This posting&apos;s skills are still being extracted. Until they&apos;re in, skills score a neutral {neutralSkills} of {MAX.skills}.
           </p>
@@ -93,7 +100,7 @@ export function MatchBreakdown({ score }: { score: MatchScore }) {
         )}
         {skills.jobSkills.length > 0 && (
           <p className="text-xs text-stone">
-            Green skills are yours (≈ means half credit through a related skill you have); dashed ones are missing. Click any skill to add it or say how well you know it — skills you know only a little count for half. A short skill list says less, so its score leans toward a typical match until the posting names more.
+            Green skills are yours (≈ through a related skill you have); dashed ones your resume doesn&apos;t show. Click any skill to add it or say how well you know it — the posting lines it bears on are checked again.
           </p>
         )}
       </section>

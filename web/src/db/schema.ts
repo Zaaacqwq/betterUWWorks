@@ -7,9 +7,13 @@ import {
   jsonb,
   index,
   real,
+  primaryKey,
+  customType,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { PostingDetails } from "../lib/job-details/types";
+import type { LineGrade, LineImportance, LineKind, LineSection, ResumeLine } from "../lib/line-check/types";
+import type { SkillLevel } from "../lib/resume/types";
 
 export const jobs = pgTable(
   "jobs",
@@ -59,6 +63,9 @@ export const jobs = pgTable(
     // Added by drizzle/0002_ai_details.sql.
     aiDetails: jsonb("ai_details").$type<PostingDetails>(),
     aiDetailsAt: timestamp("ai_details_at", { withTimezone: true }),
+    // Added by drizzle/0004_line_check.sql: when the posting's lines were split
+    // and tagged (job_lines).
+    linesAt: timestamp("lines_at", { withTimezone: true }),
 
     importedAt: timestamp("imported_at", { withTimezone: true })
       .notNull()
@@ -98,3 +105,55 @@ export const appUsers = pgTable("app_users", {
 });
 
 export type AppUser = typeof appUsers.$inferSelect;
+
+// Line-by-line matching (drizzle/0004_line_check.sql, lib/line-check).
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
+
+export const jobLines = pgTable(
+  "job_lines",
+  {
+    jobId: text("job_id").notNull(),
+    lineNo: integer("line_no").notNull(),
+    section: text("section").$type<LineSection>().notNull(),
+    text: text("text").notNull(),
+    kind: text("kind").$type<LineKind>().notNull(),
+    importance: text("importance").$type<LineImportance>().notNull(),
+    embedding: bytea("embedding"),
+  },
+  (table) => [primaryKey({ columns: [table.jobId, table.lineNo] })]
+);
+
+export const resumes = pgTable("resumes", {
+  email: text("email").primaryKey(),
+  text: text("text").notNull(),
+  textHash: text("text_hash").notNull(),
+  fileName: text("file_name"),
+  profile: jsonb("profile"),
+  userInfo: jsonb("user_info"),
+  extraSkills: jsonb("extra_skills").$type<string[]>().notNull().default([]),
+  skillLevels: jsonb("skill_levels").$type<Record<string, SkillLevel>>().notNull().default({}),
+  version: integer("version").notNull().default(1),
+  lines: jsonb("lines").$type<ResumeLine[]>().notNull().default([]),
+  fullChecks: jsonb("full_checks").$type<{ day?: string; count?: number }>().notNull().default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type StoredResume = typeof resumes.$inferSelect;
+
+export const lineGrades = pgTable(
+  "line_grades",
+  {
+    email: text("email").notNull(),
+    jobId: text("job_id").notNull(),
+    resumeVersion: integer("resume_version").notNull(),
+    linesAt: timestamp("lines_at", { withTimezone: true }).notNull(),
+    grades: jsonb("grades").$type<LineGrade[]>().notNull(),
+    skills: real("skills").notNull(),
+    staleLines: jsonb("stale_lines").$type<number[]>().notNull().default([]),
+    gradedAt: timestamp("graded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.email, table.jobId] })]
+);

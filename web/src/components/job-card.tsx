@@ -79,7 +79,7 @@ export function JobCard({ job, active, saved, matchScore, onClick }: JobCardProp
             </p>
           )}
         </div>
-        {matchScore != null && <MatchRing score={matchScore.score} size={46} />}
+        {matchScore != null && <MatchRing score={matchScore.score} size={46} estimate={!matchScore.checked} />}
       </div>
 
       <div className="mt-2.5 pt-2.5 border-t border-hairline-soft space-y-1.5 tabular-nums">

@@ -127,6 +127,9 @@ export interface MatchScore {
     level: number;
     program: number;
   };
+  // true when the skills part comes from checking the posting's lines against
+  // the resume (lib/line-check); otherwise it is the name-matching estimate.
+  checked?: boolean;
   warnings: QualificationWarning[];
   debug: MatchDebug;
 }

@@ -6,9 +6,11 @@ import { FilterBar } from "./filter-bar";
 import { JobCard } from "./job-card";
 import { JobDetailPanel } from "./job-detail-panel";
 import { useSavedJobs } from "@/hooks/use-saved-jobs";
-import { useResume } from "@/hooks/use-resume";
+import { syncResumeWithServer, useResume } from "@/hooks/use-resume";
 import { useMatchScores } from "@/hooks/use-match-scores";
+import { useLineScores } from "@/hooks/use-line-scores";
 import { ResumeUpload } from "./resume-upload";
+import { CheckProgress } from "./check-progress";
 import { AppHeader, type ClearState } from "./app-header";
 import { AccessGate } from "./access-gate";
 import { OnboardingTour } from "./onboarding-tour";
@@ -79,13 +81,20 @@ export function JobListPage() {
 
   const { savedIds, toggle: toggleSave, isSaved, count: savedCount } = useSavedJobs();
   const { profile, hasResume, userInfo, extraSkills, skillLevels } = useResume();
-  const { scores } = useMatchScores(profile, userInfo, jobs, extraSkills, skillLevels);
+  // Checked line by line on the server; until a posting is, its score is the
+  // name-matching estimate worked out here.
+  const lineScores = useLineScores(canLoad && profile != null);
+  const { scores } = useMatchScores(profile, userInfo, jobs, extraSkills, skillLevels, lineScores?.scores);
   const [resumeOpen, setResumeOpen] = useState(false);
   // Bumped by "Take the tour" in the header menu.
   const [tourRequest, setTourRequest] = useState(0);
 
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (canLoad) void syncResumeWithServer();
+  }, [canLoad]);
 
   useEffect(() => {
     if (!canLoad) return;
@@ -351,6 +360,7 @@ export function JobListPage() {
               catalogTotal={catalogTotal}
               loading={loading}
             />
+            {profile && lineScores && <CheckProgress progress={lineScores} />}
           </div>
 
           <div ref={listRef} className="flex-1 overflow-y-auto px-4 pb-4">

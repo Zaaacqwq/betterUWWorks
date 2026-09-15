@@ -10,7 +10,7 @@ import { and, inArray, isNotNull, isNull, lt, notInArray, or, sql, type SQL } fr
 export interface Extractor<Posting extends { jobId: string }> {
   name: string;
   // Set when a posting has been read; empty means it is waiting.
-  doneAt: typeof jobs.aiSkillsAt | typeof jobs.aiDetailsAt | typeof jobs.aiSummaryAt;
+  doneAt: typeof jobs.aiSkillsAt | typeof jobs.aiDetailsAt | typeof jobs.aiSummaryAt | typeof jobs.linesAt;
   // Postings read at once, each making however many model calls it makes.
   // Kept low because the gateway is shared with the interactive calls.
   concurrency: number;

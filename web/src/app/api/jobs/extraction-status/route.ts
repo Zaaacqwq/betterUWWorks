@@ -25,6 +25,7 @@ async function status(): Promise<ExtractionStatus> {
       skills: sql<number>`count(${jobs.aiSkillsAt})::int`,
       details: sql<number>`count(${jobs.aiDetailsAt})::int`,
       summary: sql<number>`count(${jobs.aiSummaryAt})::int`,
+      lines: sql<number>`count(${jobs.linesAt})::int`,
     })
     .from(jobs);
 
@@ -32,7 +33,7 @@ async function status(): Promise<ExtractionStatus> {
     EXTRACTIONS.map(async ({ kind, label, extractor }) => ({
       kind,
       label,
-      done: counts[kind as "skills" | "details" | "summary"],
+      done: counts[kind as "skills" | "details" | "summary" | "lines"],
       waiting: await countPending(extractor),
       failed: resting(extractor.name).length,
     }))
