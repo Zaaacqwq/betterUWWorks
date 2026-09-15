@@ -5,7 +5,8 @@ import type { MatchScore } from "@/lib/resume/types";
 import type { JobDetail } from "./types/job";
 import { deadlineInfo, formatPay, matchTone, PAY_TIER_TEXT, payTier, TONE_TEXT } from "@/lib/format";
 import { payDisplay } from "@/lib/job-details/present";
-import { BookmarkIcon, CloseIcon, CopyIcon } from "./icons";
+import { postingUrl } from "@/lib/waterlooworks";
+import { BookmarkIcon, CloseIcon, CopyIcon, ExternalIcon } from "./icons";
 
 interface JobDetailHeaderProps {
   job: JobDetail;
@@ -53,7 +54,6 @@ export function JobDetailHeader({ job, saved, matchScore, onToggleSave, onClose 
             {saved ? "Saved" : "Save"}
           </button>
           <button
-            data-tour="copy-id"
             onClick={handleCopyId}
             className="hidden sm:flex h-8 px-3 items-center gap-1.5 rounded-lg border border-hairline text-xs font-mono text-charcoal hover:bg-surface transition-colors"
             title="Copy job ID"
@@ -61,6 +61,20 @@ export function JobDetailHeader({ job, saved, matchScore, onToggleSave, onClose 
             <CopyIcon />
             {copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : job.jobId}
           </button>
+          {/* The extension opens the posting from this link. Copy the id too,
+              so anyone without it can paste it into WaterlooWorks' search. */}
+          <a
+            data-tour="apply"
+            href={postingUrl(job.jobId)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleCopyId}
+            className="h-8 px-3 flex items-center gap-1.5 rounded-lg bg-primary text-on-primary text-[12.5px] font-semibold hover:bg-primary-pressed transition-colors"
+            title="Open this posting on WaterlooWorks (also copies the job ID)"
+          >
+            Apply
+            <ExternalIcon />
+          </a>
           <button
             onClick={onClose}
             className="hidden lg:flex w-8 h-8 items-center justify-center rounded-lg border border-hairline text-slate hover:text-ink hover:bg-surface transition-colors"

@@ -125,10 +125,10 @@ export const TOUR_STEPS: TourStepSpec[] = [
     inDetail: true,
   },
   {
-    id: "copy-id",
-    element: '[data-tour="copy-id"]',
+    id: "apply",
+    element: '[data-tour="apply"]',
     title: "Apply on WaterlooWorks",
-    body: "Copy the job ID, then paste it into WaterlooWorks' search to open this posting and apply.",
+    body: "Apply opens this posting on WaterlooWorks with its Apply button ready. Without the betterUWWorks extension you land on WaterlooWorks' search instead — the job ID is copied, so paste it there.",
     side: "bottom",
     desktopOnly: true,
     inDetail: true,

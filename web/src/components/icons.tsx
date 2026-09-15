@@ -86,6 +86,14 @@ export function CopyIcon({ className = "w-3.5 h-3.5" }: IconProps) {
   );
 }
 
+export function ExternalIcon({ className = "w-3.5 h-3.5" }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" {...STROKE} aria-hidden>
+      <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" />
+    </svg>
+  );
+}
+
 export function RefreshIcon({ className = "w-4 h-4" }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" {...STROKE} aria-hidden>

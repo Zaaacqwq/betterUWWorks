@@ -7,6 +7,7 @@ const BROWSER_GLOBALS = [
   "setTimeout", "clearTimeout", "setInterval", "clearInterval",
   "URL", "Blob", "MutationObserver", "getComputedStyle", "TextDecoder",
   "AbortSignal", "structuredClone", "chrome",
+  "sessionStorage", "history", "Event", "KeyboardEvent",
 ];
 
 export default [

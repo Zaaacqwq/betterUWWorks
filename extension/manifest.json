@@ -31,7 +31,8 @@
         "https://waterlooworks.uwaterloo.ca/*"
       ],
       "js": [
-        "content/content.js"
+        "content/content.js",
+        "content/open-posting.js"
       ],
       "run_at": "document_idle"
     }
