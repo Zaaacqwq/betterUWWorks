@@ -29,8 +29,15 @@ export async function POST(request: Request) {
   try {
     switch (ext) {
       case "pdf": {
-        const result = await extractText(new Uint8Array(buffer), { mergePages: true });
-        text = result.text;
+        // Page by page: mergePages also collapses every line break, and the
+        // line-by-line checks need the resume's lines.
+        const result = await extractText(new Uint8Array(buffer), { mergePages: false });
+        text = result.text
+          .join("\n")
+          .replace(/[ \t\u00a0]+/g, " ")
+          .replace(/ *\n */g, "\n")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim();
         break;
       }
       case "docx":

@@ -48,7 +48,7 @@ const bodySchema = z.object({
     .passthrough(),
   userInfo: z.record(z.string(), z.unknown()).nullable().optional(),
   extraSkills: z.array(text(80)).max(100).optional(),
-  skillLevels: z.record(text(100), z.enum(["proficient", "familiar"])).optional(),
+  skillLevels: z.record(text(100), z.enum(["proficient", "familiar", "none"])).optional(),
 });
 
 const ATTEMPTS = 2;
