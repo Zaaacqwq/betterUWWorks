@@ -11,14 +11,14 @@ import type { LineGrade, ResumeLine } from "./types";
 // Lines are found three ways: the skill's name in the line, lines whose vector
 // is close to the skill's, and lines whose check cited a skill line now gone.
 
-// Cosine similarity at which a posting line counts as about the skill, for
-// qwen3-embedding:8b with the query instruction on the posting side. Measured
-// on a handful of pairs: lines a resume line meets scored 0.57-0.65, unrelated
-// ones up to 0.51.
-const SIMILAR = 0.55;
-// However common the skill, a change rechecks at most this many lines by
-// similarity; the name search and citations are not capped.
-const MAX_SIMILAR = 300;
+// Posting lines closest to the skill that are rechecked, beyond those naming
+// it. Similarity is ranked rather than cut at a fixed value: measured on the
+// production lines, a skill's own lines and unrelated ones overlap in raw
+// score, but rank well — embedding the bare skill name put 97% of the lines
+// naming it among its closest (the "Added by the student: ..." sentence
+// managed 74%). A line rechecked for nothing costs a few tokens; one missed
+// keeps a wrong grade.
+const CLOSEST = 150;
 
 export interface SkillChange {
   added: ResumeLine[];
@@ -28,7 +28,8 @@ export interface SkillChange {
 /** A pattern matching the skill as a whole word, symbols included ("C++", "C#", ".NET"). */
 export function skillPattern(skill: string): RegExp {
   const escaped = skill.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, "i");
+  // "+" and "#" carry on a name: "C" must not find "C++" or "C#".
+  return new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9+#])`, "i");
 }
 
 type Candidates = Map<string, Set<number>>;
@@ -79,15 +80,16 @@ export async function recheckAffected(resume: StoredResume, change: SkillChange)
     }
   }
 
-  // Lines close to the skill line in meaning.
+  // Lines close to the skill in meaning ("containers" for Docker).
   try {
-    const [vectors, index] = await Promise.all([embedResumeLines(changed.map((l) => l.text)), lineIndex()]);
+    const names = changed.map((l) => skillOfLine(l.text) ?? l.text);
+    const [vectors, index] = await Promise.all([embedResumeLines(names), lineIndex()]);
     for (const v of vectors) {
       index.vectors
         .map((w, i) => ({ i, sim: cosine(v, w) }))
-        .filter((s) => s.sim >= SIMILAR && checks.has(index.refs[s.i].jobId))
+        .filter((s) => checks.has(index.refs[s.i].jobId))
         .sort((a, b) => b.sim - a.sim)
-        .slice(0, MAX_SIMILAR)
+        .slice(0, CLOSEST)
         .forEach((s) => add(candidates, index.refs[s.i].jobId, index.refs[s.i].lineNo));
     }
   } catch (err) {
