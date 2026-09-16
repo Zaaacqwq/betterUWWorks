@@ -191,6 +191,9 @@ export function ResumeUpload({ open, onClose, onOpen }: ResumeUploadProps) {
           )}
           {hasResume && profile && !adding ? (
             <ProfileView
+              // Remounted when another resume comes into use, so the details
+              // and skills below belong to that one.
+              key={activeResumeId ?? "resume"}
               profile={profile}
               meta={meta}
               userInfo={userInfo}

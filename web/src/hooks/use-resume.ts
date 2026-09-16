@@ -213,7 +213,10 @@ function applyServerResume(server: ServerResume) {
     };
     localStorage.setItem(KEYS.meta, JSON.stringify(meta));
   }
+  // Details, added skills and levels belong to the resume, so they follow it —
+  // including when the resume being switched to has none of its own.
   if (server.userInfo) localStorage.setItem(KEYS.userInfo, JSON.stringify(server.userInfo));
+  else localStorage.removeItem(KEYS.userInfo);
   localStorage.setItem(KEYS.extraSkills, JSON.stringify(server.extraSkills ?? []));
   localStorage.setItem(KEYS.skillLevels, JSON.stringify(server.skillLevels ?? {}));
   localStorage.setItem(SYNC_KEYS.syncedAt, server.updatedAt);
