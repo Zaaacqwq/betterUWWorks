@@ -29,6 +29,7 @@ export async function GET(request: Request) {
       total: progress.total,
       checked: progress.checked,
       running: state.running || (!paused && progress.checked < progress.total),
+      retrying: state.retrying,
       paused,
     },
   });

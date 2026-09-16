@@ -5,7 +5,7 @@ import type { LineScores } from "@/hooks/use-line-scores";
 // How far the server has got checking the open postings against the
 // student's resume. Scores marked ~ are estimates until their posting is done.
 export function CheckProgress({ progress }: { progress: LineScores }) {
-  const { total, checked, running, paused } = progress;
+  const { total, checked, running, paused, retrying } = progress;
   if (total === 0 || (checked >= total && !paused)) return null;
   const pct = Math.round((checked / total) * 100);
 
@@ -15,9 +15,11 @@ export function CheckProgress({ progress }: { progress: LineScores }) {
         <span className="text-slate">
           {paused
             ? "Today's resume checks are used up — this version is checked tomorrow"
-            : running
-              ? "Checking postings against your resume"
-              : "Some postings are waiting to be checked"}
+            : retrying > 0 && checked + retrying >= total
+              ? `Trying ${retrying} posting${retrying === 1 ? "" : "s"} again in a moment`
+              : running
+                ? "Checking postings against your resume"
+                : "Some postings are waiting to be checked"}
         </span>
         <span className="text-stone tabular-nums shrink-0">
           {checked.toLocaleString()} / {total.toLocaleString()}

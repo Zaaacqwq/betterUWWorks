@@ -14,6 +14,8 @@ export interface LineScores {
   total: number;
   checked: number;
   running: boolean;
+  // Postings whose check failed and is waiting to be tried again.
+  retrying: number;
   paused: boolean;
 }
 

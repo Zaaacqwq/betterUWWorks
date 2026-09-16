@@ -32,10 +32,13 @@ const POSTINGS_PER_CALL = 5;
 // A call with too many lines is slow to come back and more often comes back
 // with some left out; big postings go fewer to a call.
 const LINES_PER_CALL = 90;
-const CALL_TIMEOUT_MS = 150_000;
+const CALL_TIMEOUT_MS = 240_000;
 // A posting whose check just failed waits before it is tried again, so one
-// that always fails can't hold a queue.
+// that always fails can't hold a queue. A call that timed out or errored says
+// nothing about the posting, so that one comes back round quickly; one whose
+// answer was unusable twice is likelier to fail again.
 const FAILURE_REST_MS = 30 * 60 * 1000;
+const RETRY_REST_MS = 60_000;
 const WAIT_TIMEOUT_MS = 90_000;
 
 type Key = `${string}|${string}`;
@@ -48,6 +51,7 @@ interface GraderState {
   queues: Map<string, string[]>;
   dirty: Set<string>;
   inFlight: Set<Key>;
+  // Postings waiting to be tried again, and the moment each may be.
   resting: Map<Key, number>;
   urgent: { email: string; jobId: string }[];
   waiters: Map<Key, (() => void)[]>;
@@ -109,12 +113,16 @@ export function checkNow(email: string, jobId: string): Promise<void> {
 export interface QueueState {
   running: boolean;
   queued: number;
+  // Postings whose check failed and is waiting to be tried again.
+  retrying: number;
 }
 
 export function graderState(email: string): QueueState {
   const queued = (S.queues.get(email)?.length ?? 0) + S.urgent.filter((u) => u.email === email).length;
   const running = [...S.inFlight].some((k) => k.startsWith(`${email}|`));
-  return { running: running || queued > 0, queued };
+  const now = Date.now();
+  const retrying = [...S.resting].filter(([k, until]) => k.startsWith(`${email}|`) && until > now).length;
+  return { running: running || queued > 0 || retrying > 0, queued, retrying };
 }
 
 async function pump(): Promise<void> {
@@ -173,8 +181,8 @@ async function nextTask(): Promise<Task | null> {
     while (queue.length > 0 && jobIds.length < POSTINGS_PER_CALL) {
       const jobId = queue.shift()!;
       const key = keyOf(email, jobId);
-      const rested = S.resting.get(key);
-      if (S.inFlight.has(key) || (rested && Date.now() - rested < FAILURE_REST_MS)) continue;
+      const until = S.resting.get(key);
+      if (S.inFlight.has(key) || (until && until > Date.now())) continue;
       jobIds.push(jobId);
     }
     if (jobIds.length > 0) return { email, jobIds };
@@ -274,6 +282,7 @@ async function checkBatch(resume: StoredResume, batch: Plan[]): Promise<void> {
   const resumeText = renderResume(resume.lines);
 
   let remaining = toGrade;
+  let callFailed = false;
   for (let attempt = 1; attempt <= 2 && remaining.length > 0; attempt++) {
     let answer: unknown;
     try {
@@ -288,7 +297,9 @@ async function checkBatch(resume: StoredResume, batch: Plan[]): Promise<void> {
       answer = parseAiJson(text, `line check for ${resume.email}`);
     } catch (err) {
       if (!(err instanceof AiJsonError)) {
+        // A timeout or a gateway error says nothing about these postings.
         console.error(`[line-check] call failed for ${remaining.map((p) => p.jobId).join(",")}:`, err);
+        callFailed = true;
         break;
       }
       continue;
@@ -320,8 +331,14 @@ async function checkBatch(resume: StoredResume, batch: Plan[]): Promise<void> {
     }
     return;
   }
-  for (const { jobId } of remaining) S.resting.set(keyOf(resume.email, jobId), Date.now());
+  const rest = callFailed ? RETRY_REST_MS : FAILURE_REST_MS;
+  for (const { jobId } of remaining) S.resting.set(keyOf(resume.email, jobId), Date.now() + rest);
   if (remaining.length > 0) {
-    console.error(`[line-check] ${remaining.length} posting(s) left unchecked for now: ${remaining.map((p) => p.jobId).join(",")}`);
+    const wait = Math.round(rest / 60_000);
+    console.error(
+      `[line-check] ${remaining.length} posting(s) to try again in ${wait} min: ${remaining.map((p) => p.jobId).join(",")}`
+    );
   }
+  // Something is waiting: come back to it once its rest is over.
+  if (remaining.length > 0) setTimeout(() => kick(resume.email), rest + 1000);
 }
