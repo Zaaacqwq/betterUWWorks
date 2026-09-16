@@ -6,6 +6,7 @@ import { FilterBar } from "./filter-bar";
 import { JobCard } from "./job-card";
 import { JobDetailPanel } from "./job-detail-panel";
 import { useSavedJobs } from "@/hooks/use-saved-jobs";
+import { useHiddenJobs } from "@/hooks/use-hidden-jobs";
 import { syncResumeWithServer, useResume } from "@/hooks/use-resume";
 import { useMatchScores } from "@/hooks/use-match-scores";
 import { useLineScores } from "@/hooks/use-line-scores";
@@ -65,6 +66,8 @@ export function JobListPage() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
+  // Turned-down postings are out of the list until the student asks for them.
+  const [showHiddenOnly, setShowHiddenOnly] = useState(false);
   const [clearState, setClearState] = useState<ClearState>("idle");
   // Rows in the table regardless of search and filters: the list header shows
   // "n of total", and Clear has to name the whole table's count to the server.
@@ -81,6 +84,7 @@ export function JobListPage() {
   const canLoad = viewer.status === "approved";
 
   const { savedIds, toggle: toggleSave, isSaved, count: savedCount } = useSavedJobs();
+  const { hiddenIds, toggle: toggleHidden, isHidden, count: hiddenCount } = useHiddenJobs();
   const { profile, hasResume, userInfo, extraSkills, skillLevels } = useResume();
   // Checked line by line on the server; until a posting is, its score is the
   // name-matching estimate worked out here.
@@ -249,7 +253,11 @@ export function JobListPage() {
   }, []);
 
   const sortedJobs = useMemo(() => {
-    const filtered = showSavedOnly ? jobs.filter((j) => savedIds.includes(j.jobId)) : jobs;
+    const filtered = showHiddenOnly
+      ? jobs.filter((j) => hiddenIds.includes(j.jobId))
+      : (showSavedOnly ? jobs.filter((j) => savedIds.includes(j.jobId)) : jobs).filter(
+          (j) => !hiddenIds.includes(j.jobId)
+        );
     const dir = filters.order === "asc" ? 1 : -1;
 
     return [...filtered].sort((a, b) => {
@@ -272,7 +280,7 @@ export function JobListPage() {
         }
       }
     });
-  }, [showSavedOnly, jobs, savedIds, filters.sort, filters.order, scores]);
+  }, [showSavedOnly, showHiddenOnly, jobs, savedIds, hiddenIds, filters.sort, filters.order, scores]);
 
   const totalPages = Math.ceil(sortedJobs.length / PAGE_SIZE);
   const safePage = Math.min(page, Math.max(1, totalPages));
@@ -328,8 +336,19 @@ export function JobListPage() {
     <div className="h-screen flex flex-col bg-surface">
       <AppHeader
         savedCount={savedCount}
+        hiddenCount={hiddenCount}
+        showHiddenOnly={showHiddenOnly}
+        onToggleHiddenOnly={() => {
+          setShowHiddenOnly((v) => !v);
+          setShowSavedOnly(false);
+          setPage(1);
+        }}
         showSavedOnly={showSavedOnly}
-        onToggleSaved={() => setShowSavedOnly((v) => !v)}
+        onToggleSaved={() => {
+          setShowSavedOnly((v) => !v);
+          setShowHiddenOnly(false);
+          setPage(1);
+        }}
         hasResume={hasResume}
         onOpenResume={() => setResumeOpen(true)}
         onRefresh={handleRefresh}
@@ -374,7 +393,13 @@ export function JobListPage() {
                 action={{ label: "Refresh", onClick: handleRefresh }}
               />
             ) : sortedJobs.length === 0 ? (
-              showSavedOnly && savedCount === 0 ? (
+              showHiddenOnly ? (
+                <EmptyState
+                  title="Nothing turned down yet"
+                  body="Not interested on a posting takes it out of the list. They gather here."
+                  action={{ label: "Show all jobs", onClick: () => setShowHiddenOnly(false) }}
+                />
+              ) : showSavedOnly && savedCount === 0 ? (
                 <EmptyState
                   title="No saved jobs yet"
                   body="Save a job from its detail panel to keep it here."
@@ -433,6 +458,8 @@ export function JobListPage() {
             jobId={selectedJobId}
             saved={selectedJobId ? isSaved(selectedJobId) : false}
             matchScore={selectedJobId ? scores[selectedJobId] : undefined}
+            hidden={selectedJobId ? isHidden(selectedJobId) : false}
+            onToggleHidden={toggleHidden}
             onToggleSave={toggleSave}
             onClose={handleCloseDetail}
           />

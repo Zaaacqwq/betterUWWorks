@@ -6,17 +6,19 @@ import type { JobDetail } from "./types/job";
 import { deadlineInfo, formatPay, matchTone, PAY_TIER_TEXT, payTier, TONE_TEXT } from "@/lib/format";
 import { payDisplay } from "@/lib/job-details/present";
 import { postingUrl } from "@/lib/waterlooworks";
-import { BookmarkIcon, CloseIcon, CopyIcon, ExternalIcon } from "./icons";
+import { BookmarkIcon, CloseIcon, CopyIcon, ExternalIcon, HideIcon } from "./icons";
 
 interface JobDetailHeaderProps {
   job: JobDetail;
   saved: boolean;
   matchScore?: MatchScore;
   onToggleSave: (jobId: string) => void;
+  hidden: boolean;
+  onToggleHidden: (jobId: string) => void;
   onClose: () => void;
 }
 
-export function JobDetailHeader({ job, saved, matchScore, onToggleSave, onClose }: JobDetailHeaderProps) {
+export function JobDetailHeader({ job, saved, matchScore, onToggleSave, hidden, onToggleHidden, onClose }: JobDetailHeaderProps) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   const handleCopyId = useCallback(() => {
@@ -52,6 +54,19 @@ export function JobDetailHeader({ job, saved, matchScore, onToggleSave, onClose 
           >
             <BookmarkIcon className="w-3.5 h-3.5" filled={saved} />
             {saved ? "Saved" : "Save"}
+          </button>
+          <button
+            onClick={() => onToggleHidden(job.jobId)}
+            aria-pressed={hidden}
+            title={hidden ? "Put it back in the list" : "Hide it from the list"}
+            className={`h-8 px-3 flex items-center gap-1.5 rounded-lg border text-[12.5px] font-medium transition-colors ${
+              hidden
+                ? "border-hairline-strong bg-surface text-charcoal hover:bg-surface-soft"
+                : "border-hairline text-steel hover:bg-surface hover:text-charcoal"
+            }`}
+          >
+            <HideIcon className="w-3.5 h-3.5" filled={hidden} />
+            <span className="hidden sm:inline">{hidden ? "Hidden" : "Not interested"}</span>
           </button>
           <button
             onClick={handleCopyId}

@@ -19,10 +19,12 @@ interface JobDetailPanelProps {
   saved: boolean;
   matchScore?: MatchScore;
   onToggleSave: (jobId: string) => void;
+  hidden: boolean;
+  onToggleHidden: (jobId: string) => void;
   onClose: () => void;
 }
 
-export function JobDetailPanel({ jobId, saved, matchScore, onToggleSave, onClose }: JobDetailPanelProps) {
+export function JobDetailPanel({ jobId, saved, matchScore, onToggleSave, hidden, onToggleHidden, onClose }: JobDetailPanelProps) {
   const [job, setJob] = useState<JobDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
@@ -90,6 +92,8 @@ export function JobDetailPanel({ jobId, saved, matchScore, onToggleSave, onClose
             saved={saved}
             matchScore={matchScore}
             onToggleSave={onToggleSave}
+            hidden={hidden}
+            onToggleHidden={onToggleHidden}
             onClose={onClose}
           />
 

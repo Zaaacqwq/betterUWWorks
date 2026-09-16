@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { usePopover } from "@/hooks/use-popover";
-import { BookmarkIcon, DocumentIcon, MoreIcon, PeopleIcon, RefreshIcon, SparklesIcon, TrashIcon, ShieldIcon } from "./icons";
+import { BookmarkIcon, DocumentIcon, HideIcon, MoreIcon, PeopleIcon, RefreshIcon, ShieldIcon, SparklesIcon, TrashIcon } from "./icons";
 import { useTheme } from "@/hooks/use-theme";
 import { ExtractionStatus } from "./extraction-status";
 import { useViewer } from "@/hooks/use-viewer";
@@ -16,6 +16,9 @@ interface AppHeaderProps {
   savedCount: number;
   showSavedOnly: boolean;
   onToggleSaved: () => void;
+  hiddenCount: number;
+  showHiddenOnly: boolean;
+  onToggleHiddenOnly: () => void;
   hasResume: boolean;
   onOpenResume: () => void;
   onRefresh: () => void;
@@ -35,6 +38,9 @@ export function AppHeader({
   savedCount,
   showSavedOnly,
   onToggleSaved,
+  hiddenCount,
+  showHiddenOnly,
+  onToggleHiddenOnly,
   hasResume,
   onOpenResume,
   ...menu
@@ -62,6 +68,20 @@ export function AppHeader({
               <span className={`tabular-nums ${showSavedOnly ? "text-primary" : "text-steel"}`}>{savedCount}</span>
             )}
           </button>
+          {(hiddenCount > 0 || showHiddenOnly) && (
+            <button
+              onClick={onToggleHiddenOnly}
+              aria-pressed={showHiddenOnly}
+              title="Postings you said you're not interested in"
+              className={`${HEADER_BUTTON} ${
+                showHiddenOnly ? "bg-primary-tint text-primary-deep" : "text-steel hover:bg-surface hover:text-charcoal"
+              }`}
+            >
+              <HideIcon className="w-3.5 h-3.5" filled={showHiddenOnly} />
+              <span className="hidden sm:inline">Not interested</span>
+              <span className={`tabular-nums ${showHiddenOnly ? "text-primary" : "text-steel"}`}>{hiddenCount}</span>
+            </button>
+          )}
           <button data-tour="resume" onClick={onOpenResume} className={`${HEADER_BUTTON} text-charcoal hover:bg-surface`}>
             {hasResume ? (
               <>
