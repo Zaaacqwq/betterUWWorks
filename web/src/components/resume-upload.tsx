@@ -189,6 +189,7 @@ export function ResumeUpload({ open, onClose, onOpen }: ResumeUploadProps) {
               onCancelAdd={() => setAdding(false)}
             />
           )}
+          <AiNotice />
           {hasResume && profile && !adding ? (
             <ProfileView
               // Remounted when another resume comes into use, so the details
@@ -285,6 +286,21 @@ export function ResumeUpload({ open, onClose, onOpen }: ResumeUploadProps) {
 // The student's resumes, one of them in use. Only the one in use is scored and
 // checked against the postings; the others keep the checks made while they
 // were, so going back to one shows its scores at once.
+// What happens to a resume here, said before it is uploaded rather than only
+// on the privacy page.
+function AiNotice() {
+  return (
+    <p className="text-[11.5px] leading-relaxed text-stone">
+      Your resume is read by an AI model to list your skills, and its text is kept on this server under your email so
+      every posting can be checked against it. It is never shown to other students, and removing it deletes the copy
+      here.{" "}
+      <a href="/privacy" target="_blank" rel="noreferrer" className="text-primary hover:underline">
+        Privacy
+      </a>
+    </p>
+  );
+}
+
 function ResumeList({
   resumes,
   activeId,

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { usePopover } from "@/hooks/use-popover";
-import { BookmarkIcon, DocumentIcon, MoreIcon, PeopleIcon, RefreshIcon, SparklesIcon, TrashIcon } from "./icons";
+import { BookmarkIcon, DocumentIcon, MoreIcon, PeopleIcon, RefreshIcon, SparklesIcon, TrashIcon, ShieldIcon } from "./icons";
 import { useTheme } from "@/hooks/use-theme";
 import { ExtractionStatus } from "./extraction-status";
 import { useViewer } from "@/hooks/use-viewer";
@@ -138,6 +138,16 @@ function HeaderMenu({
             <SparklesIcon className="w-4 h-4 text-steel" />
             Take the tour
           </button>
+
+          <Link
+            role="menuitem"
+            href="/privacy"
+            onClick={() => setOpen(false)}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] text-charcoal hover:bg-surface"
+          >
+            <ShieldIcon className="w-4 h-4 text-steel" />
+            Privacy
+          </Link>
 
           <ThemeSwitch />
 

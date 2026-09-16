@@ -102,6 +102,12 @@ export function AccessGate({ viewer }: { viewer: ViewerState }) {
         <p className="text-[13px] leading-relaxed text-slate">{body}</p>
         {error && !viewer.signedIn && <p className="text-[12.5px] text-poor">{error}</p>}
         <div className="pt-1">{actions}</div>
+        <p className="text-[11.5px] text-stone">
+          Signing in shares your name, email and picture with this site.{" "}
+          <a href="/privacy" className="text-primary hover:underline">
+            What it keeps
+          </a>
+        </p>
       </div>
     </div>
   );
