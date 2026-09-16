@@ -1,22 +1,27 @@
 import { createHash } from "node:crypto";
-import { and, eq, gt, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { jobLines, jobs, lineGrades, resumes, type StoredResume } from "@/db/schema";
 import { adminEmails } from "@/lib/auth/viewer";
 import { torontoDay } from "@/lib/ai/quota";
 import type { SkillLevel } from "@/lib/resume/types";
 import { buildResumeLines, skillLines, updateSkillLines } from "./resume-lines";
-import type { LineGrade, ResumeLine, TaggedLine } from "./types";
+import { MAX_RESUMES, type LineGrade, type ResumeLine, type TaggedLine } from "./types";
 
-// Where students' resumes and their checks are kept.
+// Where students' resumes and their checks are kept. A student may keep a few
+// resumes; one is in use, and only that one is scored and checked in the
+// background. Each resume's checks are kept, so going back to one already
+// checked shows its scores at once.
 
-// New resume versions a friend can have checked in a day; each is ~2M tokens
-// across every open posting. Later uploads today are kept, and checked tomorrow.
-export const DAILY_FULL_CHECKS = 2;
+// New resume versions a student can have checked in a day, across all their
+// resumes; each is ~2M tokens over every open posting. Later ones are kept,
+// and checked tomorrow.
+export const DAILY_FULL_CHECKS = 3;
 
 export interface ResumeInput {
   text: string;
   fileName: string | null;
+  label?: string | null;
   profile: unknown;
   userInfo: unknown;
   extraSkills: string[];
@@ -30,79 +35,162 @@ export type ResumeChange =
 
 const hashText = (text: string) => createHash("sha256").update(text).digest("hex");
 
-export async function getResume(email: string): Promise<StoredResume | null> {
-  const [row] = await db.select().from(resumes).where(eq(resumes.email, email)).limit(1);
+export async function activeResume(email: string): Promise<StoredResume | null> {
+  const [row] = await db
+    .select()
+    .from(resumes)
+    .where(and(eq(resumes.email, email), eq(resumes.active, true)))
+    .limit(1);
   return row ?? null;
 }
 
-export async function saveResume(
-  email: string,
-  input: ResumeInput,
-  now = new Date()
-): Promise<{ resume: StoredResume; change: ResumeChange }> {
-  const existing = await getResume(email);
-  const textHash = hashText(input.text);
-  const wanted = skillLines(input.extraSkills, input.skillLevels);
+export async function listResumes(email: string): Promise<StoredResume[]> {
+  return db.select().from(resumes).where(eq(resumes.email, email)).orderBy(desc(resumes.updatedAt));
+}
 
-  let version = existing?.version ?? 0;
-  let lines: ResumeLine[];
-  let fullChecks = existing?.fullChecks ?? {};
-  let change: ResumeChange;
-
-  if (!existing || existing.textHash !== textHash) {
-    version += 1;
-    lines = updateSkillLines(buildResumeLines(input.text), wanted).lines;
-    const day = torontoDay(now);
-    fullChecks = { day, count: fullChecks.day === day ? (fullChecks.count ?? 0) + 1 : 1 };
-    change = { kind: "new-version" };
-  } else {
-    const update = updateSkillLines(existing.lines, wanted);
-    lines = update.lines;
-    change =
-      update.added.length > 0 || update.removed.length > 0
-        ? { kind: "skills", added: update.added, removed: update.removed }
-        : { kind: "none" };
-  }
-
-  const values = {
-    email,
+function contentOf(input: ResumeInput, now: Date) {
+  return {
     text: input.text,
-    textHash,
+    textHash: hashText(input.text),
     fileName: input.fileName,
     profile: input.profile ?? null,
     userInfo: input.userInfo ?? null,
     extraSkills: input.extraSkills,
     skillLevels: input.skillLevels,
-    version,
-    lines,
-    fullChecks,
     updatedAt: now,
   };
+}
+
+/** Saves over the resume in use, or starts the student's first one. */
+export async function saveResume(
+  email: string,
+  input: ResumeInput,
+  now = new Date()
+): Promise<{ resume: StoredResume; change: ResumeChange }> {
+  const existing = await activeResume(email);
+  if (!existing) return { resume: await addResume(email, input, now), change: { kind: "new-version" } };
+
+  const content = contentOf(input, now);
+  const wanted = skillLines(input.extraSkills, input.skillLevels);
+  const newVersion = existing.textHash !== content.textHash;
+  const update = newVersion
+    ? { lines: updateSkillLines(buildResumeLines(input.text), wanted).lines, added: [], removed: [] }
+    : updateSkillLines(existing.lines, wanted);
+
+  const day = torontoDay(now);
   const [resume] = await db
-    .insert(resumes)
-    .values(values)
-    .onConflictDoUpdate({ target: resumes.email, set: values })
+    .update(resumes)
+    .set({
+      ...content,
+      label: input.label ?? existing.label,
+      version: newVersion ? existing.version + 1 : existing.version,
+      lines: update.lines,
+      fullChecks: newVersion
+        ? { day, count: existing.fullChecks.day === day ? (existing.fullChecks.count ?? 0) + 1 : 1 }
+        : existing.fullChecks,
+    })
+    .where(eq(resumes.id, existing.id))
     .returning();
+
+  const change: ResumeChange = newVersion
+    ? { kind: "new-version" }
+    : update.added.length > 0 || update.removed.length > 0
+      ? { kind: "skills", added: update.added, removed: update.removed }
+      : { kind: "none" };
   return { resume, change };
 }
 
-export async function deleteResume(email: string): Promise<void> {
+export class TooManyResumes extends Error {}
+
+/** Keeps another resume and puts it in use. */
+export async function addResume(email: string, input: ResumeInput, now = new Date()): Promise<StoredResume> {
+  const day = torontoDay(now);
+  return db.transaction(async (tx) => {
+    const held = await tx.select({ id: resumes.id }).from(resumes).where(eq(resumes.email, email));
+    if (held.length >= MAX_RESUMES) throw new TooManyResumes(`${MAX_RESUMES} resumes is the most you can keep here.`);
+    await tx.update(resumes).set({ active: false }).where(eq(resumes.email, email));
+    const [row] = await tx
+      .insert(resumes)
+      .values({
+        email,
+        label: input.label ?? input.fileName ?? `Resume ${held.length + 1}`,
+        active: true,
+        ...contentOf(input, now),
+        version: 1,
+        lines: updateSkillLines(buildResumeLines(input.text), skillLines(input.extraSkills, input.skillLevels)).lines,
+        fullChecks: { day, count: 1 },
+      })
+      .returning();
+    return row;
+  });
+}
+
+/** Puts one of the student's resumes in use, and answers with it. */
+export async function useResume(email: string, id: string): Promise<StoredResume | null> {
+  return db.transaction(async (tx) => {
+    const [wanted] = await tx
+      .select()
+      .from(resumes)
+      .where(and(eq(resumes.email, email), eq(resumes.id, id)))
+      .limit(1);
+    if (!wanted) return null;
+    await tx.update(resumes).set({ active: false }).where(eq(resumes.email, email));
+    const [row] = await tx.update(resumes).set({ active: true }).where(eq(resumes.id, id)).returning();
+    return row;
+  });
+}
+
+export async function renameResume(email: string, id: string, label: string): Promise<StoredResume | null> {
+  const [row] = await db
+    .update(resumes)
+    .set({ label })
+    .where(and(eq(resumes.email, email), eq(resumes.id, id)))
+    .returning();
+  return row ?? null;
+}
+
+/** Removes one resume and its checks; the most recent of the rest takes over. */
+export async function deleteResume(email: string, id: string): Promise<StoredResume | null> {
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .delete(resumes)
+      .where(and(eq(resumes.email, email), eq(resumes.id, id)))
+      .returning();
+    if (rows.length === 0) return null;
+    await tx.delete(lineGrades).where(eq(lineGrades.resumeId, id));
+    if (!rows[0].active) return activeResume(email);
+    const [next] = await tx
+      .select({ id: resumes.id })
+      .from(resumes)
+      .where(eq(resumes.email, email))
+      .orderBy(desc(resumes.updatedAt))
+      .limit(1);
+    if (!next) return null;
+    const [row] = await tx.update(resumes).set({ active: true }).where(eq(resumes.id, next.id)).returning();
+    return row;
+  });
+}
+
+/** Everything of this student's: for "remove my resume", and for a removed account. */
+export async function deleteAllResumes(email: string): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.delete(lineGrades).where(eq(lineGrades.email, email));
     await tx.delete(resumes).where(eq(resumes.email, email));
   });
 }
 
-/** Past today's allowance of new versions: this version waits for tomorrow. */
-export function isPaused(resume: Pick<StoredResume, "email" | "fullChecks">, now = new Date()): boolean {
-  if (adminEmails().has(resume.email)) return false;
-  const { day, count = 0 } = resume.fullChecks;
-  return day === torontoDay(now) && count > DAILY_FULL_CHECKS;
+/** Past today's allowance of new versions: this one waits for tomorrow. */
+export async function isPaused(email: string, now = new Date()): Promise<boolean> {
+  if (adminEmails().has(email)) return false;
+  const day = torontoDay(now);
+  const rows = await db.select({ fullChecks: resumes.fullChecks }).from(resumes).where(eq(resumes.email, email));
+  const started = rows.reduce((n, r) => n + (r.fullChecks.day === day ? (r.fullChecks.count ?? 0) : 0), 0);
+  return started > DAILY_FULL_CHECKS;
 }
 
-export async function resumeOwners(): Promise<string[]> {
-  const rows = await db.select({ email: resumes.email }).from(resumes);
-  return rows.map((r) => r.email);
+/** The resume each student has in use: what the background checking works through. */
+export async function resumesInUse(): Promise<{ email: string; id: string }[]> {
+  return db.select({ email: resumes.email, id: resumes.id }).from(resumes).where(eq(resumes.active, true));
 }
 
 // Postings students are checked against: tagged, and still taking applications.
@@ -121,11 +209,11 @@ export interface PendingPosting {
 }
 
 /** Open postings whose check for this resume is missing, out of date, or has lines to redo. */
-export async function pendingPostings(email: string, version: number): Promise<PendingPosting[]> {
+export async function pendingPostings(resumeId: string, version: number): Promise<PendingPosting[]> {
   return db
     .select({ jobId: jobs.jobId, level: jobs.level, aiSkills: jobs.aiSkills, deadlineAt: jobs.deadlineAt })
     .from(jobs)
-    .leftJoin(lineGrades, and(eq(lineGrades.jobId, jobs.jobId), eq(lineGrades.email, email)))
+    .leftJoin(lineGrades, and(eq(lineGrades.jobId, jobs.jobId), eq(lineGrades.resumeId, resumeId)))
     .where(
       and(
         CHECKABLE,
@@ -144,25 +232,25 @@ export interface CheckProgress {
   checked: number;
 }
 
-export async function checkProgress(email: string, version: number): Promise<CheckProgress> {
+export async function checkProgress(resumeId: string, version: number): Promise<CheckProgress> {
   const [row] = await db
     .select({
       total: sql<number>`count(*)::int`,
       checked: sql<number>`count(${lineGrades.jobId})::int`,
     })
     .from(jobs)
-    .leftJoin(lineGrades, and(eq(lineGrades.jobId, jobs.jobId), eq(lineGrades.email, email), currentFor(version)))
+    .leftJoin(lineGrades, and(eq(lineGrades.jobId, jobs.jobId), eq(lineGrades.resumeId, resumeId), currentFor(version)))
     .where(CHECKABLE);
   return row;
 }
 
 /** Skills score, out of 70, of every posting checked against this resume version. */
-export async function checkedScores(email: string, version: number): Promise<Record<string, number>> {
+export async function checkedScores(resumeId: string, version: number): Promise<Record<string, number>> {
   const rows = await db
     .select({ jobId: lineGrades.jobId, skills: lineGrades.skills })
     .from(lineGrades)
     .innerJoin(jobs, eq(jobs.jobId, lineGrades.jobId))
-    .where(and(eq(lineGrades.email, email), currentFor(version)));
+    .where(and(eq(lineGrades.resumeId, resumeId), currentFor(version)));
   return Object.fromEntries(rows.map((r) => [r.jobId, r.skills]));
 }
 
@@ -202,35 +290,37 @@ export interface StoredCheck {
   staleLines: number[];
 }
 
-export async function storedChecks(email: string, jobIds: string[]): Promise<Map<string, StoredCheck>> {
+const CHECK_COLUMNS = {
+  jobId: lineGrades.jobId,
+  resumeVersion: lineGrades.resumeVersion,
+  linesAt: lineGrades.linesAt,
+  grades: lineGrades.grades,
+  skills: lineGrades.skills,
+  staleLines: lineGrades.staleLines,
+};
+
+export async function storedChecks(resumeId: string, jobIds: string[]): Promise<Map<string, StoredCheck>> {
   if (jobIds.length === 0) return new Map();
   const rows = await db
-    .select({
-      jobId: lineGrades.jobId,
-      resumeVersion: lineGrades.resumeVersion,
-      linesAt: lineGrades.linesAt,
-      grades: lineGrades.grades,
-      skills: lineGrades.skills,
-      staleLines: lineGrades.staleLines,
-    })
+    .select(CHECK_COLUMNS)
     .from(lineGrades)
-    .where(and(eq(lineGrades.email, email), inArray(lineGrades.jobId, jobIds)));
+    .where(and(eq(lineGrades.resumeId, resumeId), inArray(lineGrades.jobId, jobIds)));
   return new Map(rows.map((r) => [r.jobId, r]));
 }
 
 export async function writeCheck(
-  email: string,
+  resume: { id: string; email: string },
   check: { jobId: string; resumeVersion: number; linesAt: Date; grades: LineGrade[]; skills: number }
 ): Promise<void> {
-  const values = { email, ...check, staleLines: [] as number[], gradedAt: new Date() };
+  const values = { resumeId: resume.id, email: resume.email, ...check, staleLines: [] as number[], gradedAt: new Date() };
   await db
     .insert(lineGrades)
     .values(values)
-    .onConflictDoUpdate({ target: [lineGrades.email, lineGrades.jobId], set: values });
+    .onConflictDoUpdate({ target: [lineGrades.resumeId, lineGrades.jobId], set: values });
 }
 
 /** Asks for some lines of already-checked postings to be checked again. */
-export async function markStale(email: string, version: number, byJob: Map<string, number[]>): Promise<number> {
+export async function markStale(resumeId: string, version: number, byJob: Map<string, number[]>): Promise<number> {
   let marked = 0;
   for (const [jobId, lineNos] of byJob) {
     if (lineNos.length === 0) continue;
@@ -239,7 +329,7 @@ export async function markStale(email: string, version: number, byJob: Map<strin
       .set({
         staleLines: sql`(select coalesce(jsonb_agg(distinct x order by x), '[]'::jsonb) from jsonb_array_elements(${lineGrades.staleLines} || ${JSON.stringify(lineNos)}::jsonb) as t(x))`,
       })
-      .where(and(eq(lineGrades.email, email), eq(lineGrades.jobId, jobId), eq(lineGrades.resumeVersion, version)))
+      .where(and(eq(lineGrades.resumeId, resumeId), eq(lineGrades.jobId, jobId), eq(lineGrades.resumeVersion, version)))
       .returning({ jobId: lineGrades.jobId });
     marked += rows.length;
   }
@@ -247,16 +337,9 @@ export async function markStale(email: string, version: number, byJob: Map<strin
 }
 
 /** Every current check of this resume, for finding which cite a given line. */
-export async function currentChecks(email: string, version: number): Promise<StoredCheck[]> {
+export async function currentChecks(resumeId: string, version: number): Promise<StoredCheck[]> {
   return db
-    .select({
-      jobId: lineGrades.jobId,
-      resumeVersion: lineGrades.resumeVersion,
-      linesAt: lineGrades.linesAt,
-      grades: lineGrades.grades,
-      skills: lineGrades.skills,
-      staleLines: lineGrades.staleLines,
-    })
+    .select(CHECK_COLUMNS)
     .from(lineGrades)
-    .where(and(eq(lineGrades.email, email), eq(lineGrades.resumeVersion, version)));
+    .where(and(eq(lineGrades.resumeId, resumeId), eq(lineGrades.resumeVersion, version)));
 }

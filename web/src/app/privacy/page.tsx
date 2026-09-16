@@ -22,10 +22,10 @@ const SECTIONS: { heading: string; body: string[] }[] = [
     heading: "Your resume",
     body: [
       "When you upload a resume, the file is sent to the server to pull out its text; the file itself is not kept. The text is sent to an AI model to list your skills and experience.",
-      "The resume text, that list, your details (program, term, GPA if you give it) and the skills you add are saved on the server under your email, and in your browser. The server keeps them so every open posting can be checked against your resume while you're away, and so your resume follows you to another browser. The site owner runs the server and can see what is stored on it.",
+      "The resume text, that list, your details (program, term, GPA if you give it) and the skills you add are saved on the server under your email, and in your browser. You can keep a few resumes; one of them is in use at a time. The server keeps them so every open posting can be checked against your resume while you're away, and so your resume follows you to another browser. The site owner runs the server and can see what is stored on it.",
       "To check a posting, your resume — without your email, phone number or profile links — is sent to an AI model together with the posting's lines. The result, which lines your resume meets and where, is saved on the server under your email.",
       "Match advice and cover letters send your profile or resume text with each request; their answers are kept only in your browser. Saved jobs also live only in your browser.",
-      "Remove your resume in the app and it is deleted from the server, with every check made against it. If the owner removes your account, your resume goes too.",
+      "Remove a resume in the app and it is deleted from the server, with every check made against it. If the owner removes your account, your resume goes too.",
     ],
   },
   {

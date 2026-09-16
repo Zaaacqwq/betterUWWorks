@@ -67,7 +67,7 @@ export function selectStale(
 }
 
 export async function recheckAffected(resume: StoredResume, change: SkillChange): Promise<number> {
-  const checks = new Map((await currentChecks(resume.email, resume.version)).map((c) => [c.jobId, c.grades]));
+  const checks = new Map((await currentChecks(resume.id, resume.version)).map((c) => [c.jobId, c.grades]));
   if (checks.size === 0) return 0;
   const changed = [...change.added, ...change.removed];
   const candidates: Candidates = new Map();
@@ -107,7 +107,7 @@ export async function recheckAffected(resume: StoredResume, change: SkillChange)
     gained: change.added.length > 0,
     lost: change.removed.length > 0,
   });
-  const marked = await markStale(resume.email, resume.version, stale);
+  const marked = await markStale(resume.id, resume.version, stale);
   kick(resume.email);
   return marked;
 }

@@ -7,6 +7,7 @@ import {
   jsonb,
   index,
   real,
+  boolean,
   primaryKey,
   customType,
 } from "drizzle-orm/pg-core";
@@ -126,26 +127,36 @@ export const jobLines = pgTable(
   (table) => [primaryKey({ columns: [table.jobId, table.lineNo] })]
 );
 
-export const resumes = pgTable("resumes", {
-  email: text("email").primaryKey(),
-  text: text("text").notNull(),
-  textHash: text("text_hash").notNull(),
-  fileName: text("file_name"),
-  profile: jsonb("profile"),
-  userInfo: jsonb("user_info"),
-  extraSkills: jsonb("extra_skills").$type<string[]>().notNull().default([]),
-  skillLevels: jsonb("skill_levels").$type<Record<string, SkillLevel>>().notNull().default({}),
-  version: integer("version").notNull().default(1),
-  lines: jsonb("lines").$type<ResumeLine[]>().notNull().default([]),
-  fullChecks: jsonb("full_checks").$type<{ day?: string; count?: number }>().notNull().default({}),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const resumes = pgTable(
+  "resumes",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    email: text("email").notNull(),
+    label: text("label"),
+    // One resume per student is in use: the one the site scores against and
+    // checks in the background.
+    active: boolean("active").notNull().default(true),
+    text: text("text").notNull(),
+    textHash: text("text_hash").notNull(),
+    fileName: text("file_name"),
+    profile: jsonb("profile"),
+    userInfo: jsonb("user_info"),
+    extraSkills: jsonb("extra_skills").$type<string[]>().notNull().default([]),
+    skillLevels: jsonb("skill_levels").$type<Record<string, SkillLevel>>().notNull().default({}),
+    version: integer("version").notNull().default(1),
+    lines: jsonb("lines").$type<ResumeLine[]>().notNull().default([]),
+    fullChecks: jsonb("full_checks").$type<{ day?: string; count?: number }>().notNull().default({}),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("idx_resumes_email").on(table.email)]
+);
 
 export type StoredResume = typeof resumes.$inferSelect;
 
 export const lineGrades = pgTable(
   "line_grades",
   {
+    resumeId: uuid("resume_id").notNull(),
     email: text("email").notNull(),
     jobId: text("job_id").notNull(),
     resumeVersion: integer("resume_version").notNull(),
@@ -155,5 +166,5 @@ export const lineGrades = pgTable(
     staleLines: jsonb("stale_lines").$type<number[]>().notNull().default([]),
     gradedAt: timestamp("graded_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.email, table.jobId] })]
+  (table) => [primaryKey({ columns: [table.resumeId, table.jobId] }), index("idx_line_grades_email").on(table.email)]
 );

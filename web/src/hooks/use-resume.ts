@@ -8,6 +8,10 @@ import { migrateProfile } from "@/lib/resume/migrate-profile";
 
 const KEYS = {
   text: "buw-resume-raw",
+  // Which of the student's resumes this browser is showing, and the list of
+  // them as the server last described it.
+  id: "buw-resume-id",
+  list: "buw-resumes",
   profile: "buw-resume-profile",
   meta: "buw-resume-meta",
   userInfo: "buw-user-info",
@@ -41,8 +45,20 @@ function simpleHash(s: string): string {
   return h.toString(36);
 }
 
+export interface ResumeSummary {
+  id: string;
+  label: string | null;
+  fileName: string | null;
+  active: boolean;
+  version: number;
+  updatedAt: string;
+  checked: number;
+}
+
 interface ResumeState {
   text: string | null;
+  resumes: ResumeSummary[];
+  activeId: string | null;
   profile: ResumeProfile | null;
   meta: ResumeMeta | null;
   userInfo: UserInfo | null;
@@ -51,9 +67,12 @@ interface ResumeState {
 }
 
 const EMPTY_SKILLS: string[] = [];
+const EMPTY_RESUMES: ResumeSummary[] = [];
 const EMPTY_LEVELS: SkillLevels = {};
 const EMPTY_STATE: ResumeState = {
   text: null,
+  resumes: EMPTY_RESUMES,
+  activeId: null,
   profile: null,
   meta: null,
   userInfo: null,
@@ -71,12 +90,16 @@ function getSnapshot(): ResumeState {
     (localStorage.getItem(KEYS.meta) ?? "") +
     (localStorage.getItem(KEYS.userInfo) ?? "") +
     (localStorage.getItem(KEYS.extraSkills) ?? "") +
-    (localStorage.getItem(KEYS.skillLevels) ?? "");
+    (localStorage.getItem(KEYS.skillLevels) ?? "") +
+    (localStorage.getItem(KEYS.list) ?? "") +
+    (localStorage.getItem(KEYS.id) ?? "");
   if (raw !== cacheKey) {
     cacheKey = raw;
     const rawProfile = readJSON<Record<string, unknown>>(KEYS.profile);
     cached = {
       text: localStorage.getItem(KEYS.text),
+      resumes: readJSON<ResumeSummary[]>(KEYS.list) ?? EMPTY_RESUMES,
+      activeId: localStorage.getItem(KEYS.id),
       profile: rawProfile ? migrateProfile(rawProfile) : null,
       meta: readJSON<ResumeMeta>(KEYS.meta),
       userInfo: readJSON<UserInfo>(KEYS.userInfo),
@@ -97,7 +120,7 @@ function getServerSnapshot(): ResumeState {
 // change here is sent there shortly after; on load, whichever side changed
 // last wins: unsent edits in this browser, otherwise the server's copy.
 
-const SYNC_KEYS = { dirty: "buw-resume-dirty", syncedAt: "buw-resume-synced-at" } as const;
+const SYNC_KEYS = { dirty: "buw-resume-dirty", syncedAt: "buw-resume-synced-at", asNew: "buw-resume-as-new" } as const;
 const PUSH_DELAY_MS = 1200;
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 const pushListeners = new Set<() => void>();
@@ -106,6 +129,10 @@ const pushListeners = new Set<() => void>();
 export function onResumePushed(cb: () => void): () => void {
   pushListeners.add(cb);
   return () => pushListeners.delete(cb);
+}
+
+function pushed() {
+  pushListeners.forEach((cb) => cb());
 }
 
 function schedulePush() {
@@ -117,14 +144,35 @@ function schedulePush() {
   }, PUSH_DELAY_MS);
 }
 
+interface ServerResume {
+  id: string;
+  label: string | null;
+  text: string;
+  fileName: string | null;
+  profile: ResumeProfile | null;
+  userInfo: UserInfo | null;
+  extraSkills: string[];
+  skillLevels: SkillLevels;
+  version: number;
+  updatedAt: string;
+}
+
+interface ServerLibrary {
+  active: ServerResume | null;
+  resumes: ResumeSummary[];
+}
+
 async function pushResume(): Promise<void> {
   const text = localStorage.getItem(KEYS.text);
   const profile = readJSON<ResumeProfile>(KEYS.profile);
   // A resume still being read is sent once its profile is in.
   if (!text || text.trim().length < 50 || !profile) return;
+  // Uploaded with "Add another", this becomes a resume of its own rather than
+  // saving over the one in use.
+  const asNew = localStorage.getItem(SYNC_KEYS.asNew) === "1";
   try {
     const res = await fetch("/api/resume", {
-      method: "PUT",
+      method: asNew ? "POST" : "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text,
@@ -138,22 +186,69 @@ async function pushResume(): Promise<void> {
     const json = await res.json().catch(() => null);
     if (!res.ok || !json?.success) return;
     localStorage.removeItem(SYNC_KEYS.dirty);
+    localStorage.removeItem(SYNC_KEYS.asNew);
     localStorage.setItem(SYNC_KEYS.syncedAt, json.data.updatedAt);
-    pushListeners.forEach((cb) => cb());
+    localStorage.setItem(KEYS.id, json.data.id);
+    await refreshLibrary();
+    pushed();
   } catch {
     // Offline or signed out: the edit stays marked unsent and goes next time.
   }
 }
 
-interface ServerResume {
-  text: string;
-  fileName: string | null;
-  profile: ResumeProfile | null;
-  userInfo: UserInfo | null;
-  extraSkills: string[];
-  skillLevels: SkillLevels;
-  version: number;
-  updatedAt: string;
+/** Writes the resume in use into this browser, as the pages read it. */
+function applyServerResume(server: ServerResume) {
+  const prevMeta = readJSON<ResumeMeta>(KEYS.meta);
+  const sameText = localStorage.getItem(KEYS.text) === server.text;
+  localStorage.setItem(KEYS.text, server.text);
+  localStorage.setItem(KEYS.id, server.id);
+  if (server.profile) localStorage.setItem(KEYS.profile, JSON.stringify(server.profile));
+  else localStorage.removeItem(KEYS.profile);
+  if (!sameText || !prevMeta) {
+    const meta: ResumeMeta = {
+      fileName: server.fileName,
+      uploadedAt: server.updatedAt,
+      contentHash: simpleHash(server.text),
+      profileVersion: (prevMeta?.profileVersion ?? 0) + 1,
+    };
+    localStorage.setItem(KEYS.meta, JSON.stringify(meta));
+  }
+  if (server.userInfo) localStorage.setItem(KEYS.userInfo, JSON.stringify(server.userInfo));
+  localStorage.setItem(KEYS.extraSkills, JSON.stringify(server.extraSkills ?? []));
+  localStorage.setItem(KEYS.skillLevels, JSON.stringify(server.skillLevels ?? {}));
+  localStorage.setItem(SYNC_KEYS.syncedAt, server.updatedAt);
+  localStorage.removeItem(SYNC_KEYS.dirty);
+}
+
+async function fetchLibrary(): Promise<ServerLibrary | null> {
+  const res = await fetch("/api/resume");
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success) return null;
+  return json.data as ServerLibrary;
+}
+
+/** Brings the list of resumes, and the one in use, up to date in this browser. */
+async function refreshLibrary(hydrate = false): Promise<ServerLibrary | null> {
+  const library = await fetchLibrary();
+  if (!library) return null;
+  localStorage.setItem(KEYS.list, JSON.stringify(library.resumes));
+  if (hydrate) {
+    if (library.active) applyServerResume(library.active);
+    else clearLocalResume();
+  }
+  notify();
+  return library;
+}
+
+function clearLocalResume() {
+  localStorage.removeItem(KEYS.text);
+  localStorage.removeItem(KEYS.profile);
+  localStorage.removeItem(KEYS.meta);
+  localStorage.removeItem(KEYS.id);
+  localStorage.removeItem("buw-match-cache");
+  localStorage.removeItem(SYNC_KEYS.dirty);
+  localStorage.removeItem(SYNC_KEYS.syncedAt);
+  localStorage.removeItem(SYNC_KEYS.asNew);
 }
 
 let synced = false;
@@ -163,41 +258,61 @@ export async function syncResumeWithServer(): Promise<void> {
   if (synced) return;
   synced = true;
   try {
-    const res = await fetch("/api/resume");
-    const json = await res.json().catch(() => null);
-    if (!res.ok || !json?.success) return;
-    const server = json.data as ServerResume | null;
+    const library = await fetchLibrary();
+    if (!library) return;
+    localStorage.setItem(KEYS.list, JSON.stringify(library.resumes));
+    notify();
+    const server = library.active;
     const localText = localStorage.getItem(KEYS.text);
 
+    // Edits made here that never reached the server win; otherwise the server's
+    // copy does, so another browser's changes and switches follow.
     if (localStorage.getItem(SYNC_KEYS.dirty) || (!server && localText)) {
       await pushResume();
       return;
     }
-    if (!server || server.updatedAt === localStorage.getItem(SYNC_KEYS.syncedAt)) return;
-
-    // Changed elsewhere since this browser last heard: take the server's copy.
-    const prevMeta = readJSON<ResumeMeta>(KEYS.meta);
-    const sameText = localText === server.text;
-    localStorage.setItem(KEYS.text, server.text);
-    if (server.profile) localStorage.setItem(KEYS.profile, JSON.stringify(server.profile));
-    if (!sameText || !prevMeta) {
-      const meta: ResumeMeta = {
-        fileName: server.fileName,
-        uploadedAt: server.updatedAt,
-        contentHash: simpleHash(server.text),
-        profileVersion: (prevMeta?.profileVersion ?? 0) + 1,
-      };
-      localStorage.setItem(KEYS.meta, JSON.stringify(meta));
+    if (!server || server.updatedAt === localStorage.getItem(SYNC_KEYS.syncedAt)) {
+      if (server) localStorage.setItem(KEYS.id, server.id);
+      return;
     }
-    if (server.userInfo) localStorage.setItem(KEYS.userInfo, JSON.stringify(server.userInfo));
-    localStorage.setItem(KEYS.extraSkills, JSON.stringify(server.extraSkills ?? []));
-    localStorage.setItem(KEYS.skillLevels, JSON.stringify(server.skillLevels ?? {}));
-    localStorage.setItem(SYNC_KEYS.syncedAt, server.updatedAt);
+    applyServerResume(server);
     notify();
-    pushListeners.forEach((cb) => cb());
+    pushed();
   } catch {
     synced = false;
   }
+}
+
+/** The next resume uploaded is kept alongside the others instead of replacing. */
+export function startNewResume(): void {
+  localStorage.setItem(SYNC_KEYS.asNew, "1");
+}
+
+export async function switchResume(id: string): Promise<void> {
+  const res = await fetch(`/api/resume/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ use: true }),
+  });
+  if (!res.ok) return;
+  await refreshLibrary(true);
+  pushed();
+}
+
+export async function renameResume(id: string, label: string): Promise<void> {
+  await fetch(`/api/resume/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ label }),
+  });
+  await refreshLibrary();
+}
+
+export async function removeResume(id: string): Promise<void> {
+  const res = await fetch(`/api/resume/${id}`, { method: "DELETE" });
+  if (!res.ok) return;
+  await refreshLibrary(true);
+  pushed();
 }
 
 export function useResume() {
@@ -273,22 +388,20 @@ export function useResume() {
   }, []);
 
   const clearResume = useCallback(() => {
-    localStorage.removeItem(KEYS.text);
-    localStorage.removeItem(KEYS.profile);
-    localStorage.removeItem(KEYS.meta);
-    localStorage.removeItem("buw-match-cache");
-    localStorage.removeItem(SYNC_KEYS.dirty);
-    localStorage.removeItem(SYNC_KEYS.syncedAt);
+    localStorage.removeItem(KEYS.list);
+    clearLocalResume();
     if (pushTimer) clearTimeout(pushTimer);
     notify();
-    // The server's copy, and every check made against it, go too.
+    // Every resume on the server, and every check made against them, go too.
     void fetch("/api/resume", { method: "DELETE" })
-      .then(() => pushListeners.forEach((cb) => cb()))
+      .then(() => pushed())
       .catch(() => {});
   }, []);
 
   return {
     resumeText: state.text,
+    resumes: state.resumes,
+    activeResumeId: state.activeId,
     profile: state.profile,
     meta: state.meta,
     userInfo: state.userInfo,
@@ -304,5 +417,9 @@ export function useResume() {
     addSkill,
     removeSkill,
     clearResume,
+    startNewResume,
+    switchResume,
+    renameResume,
+    removeResume,
   };
 }

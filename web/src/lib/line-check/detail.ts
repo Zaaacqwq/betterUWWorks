@@ -1,5 +1,5 @@
 import { isCheckable, lineWeight, scoreLines } from "./score";
-import { getResume, postingsForCheck, storedChecks } from "./store";
+import { activeResume, postingsForCheck, storedChecks } from "./store";
 import type { Grade, LineImportance, LineKind, LineSection } from "./types";
 
 // One posting's check, line by line, as the Match breakdown shows it.
@@ -23,12 +23,9 @@ export type CheckDetail =
   | { status: "checked"; skills: number; weight: number; earned: number; updating: boolean; lines: CheckedLine[] };
 
 export async function checkDetail(email: string, jobId: string): Promise<CheckDetail> {
-  const [resume, [posting], stored] = await Promise.all([
-    getResume(email),
-    postingsForCheck([jobId]),
-    storedChecks(email, [jobId]),
-  ]);
+  const [resume, [posting]] = await Promise.all([activeResume(email), postingsForCheck([jobId])]);
   if (!resume || !posting?.linesAt) return { status: "unavailable" };
+  const stored = await storedChecks(resume.id, [jobId]);
 
   const check = stored.get(jobId);
   const current =

@@ -10,11 +10,11 @@ import { DISOWNED_PREFIX, renderResume } from "./resume-lines";
 import { isCheckable, scoreLines } from "./score";
 import type { LineGrade } from "./types";
 import {
-  getResume,
+  activeResume,
   isPaused,
   pendingPostings,
   postingsForCheck,
-  resumeOwners,
+  resumesInUse,
   storedChecks,
   writeCheck,
   type PendingPosting,
@@ -161,7 +161,7 @@ async function nextTask(): Promise<Task | null> {
     if (!S.inFlight.has(keyOf(email, jobId))) return { email, jobIds: [jobId] };
   }
 
-  S.owners ??= await resumeOwners();
+  S.owners ??= (await resumesInUse()).map((r) => r.email);
   for (let tried = 0; tried < S.owners.length; tried++) {
     const email = S.owners[S.turn++ % S.owners.length];
     if (S.dirty.has(email) || !S.queues.has(email)) {
@@ -183,9 +183,9 @@ async function nextTask(): Promise<Task | null> {
 }
 
 async function buildQueue(email: string): Promise<string[]> {
-  const resume = await getResume(email);
-  if (!resume || isPaused(resume)) return [];
-  const pending = await pendingPostings(email, resume.version);
+  const resume = await activeResume(email);
+  if (!resume || (await isPaused(email))) return [];
+  const pending = await pendingPostings(resume.id, resume.version);
   return orderByEstimate(resume, pending);
 }
 
@@ -214,9 +214,9 @@ interface Plan {
 }
 
 async function run(task: Task): Promise<void> {
-  const resume = await getResume(task.email);
+  const resume = await activeResume(task.email);
   if (!resume) return;
-  const [postings, stored] = await Promise.all([postingsForCheck(task.jobIds), storedChecks(task.email, task.jobIds)]);
+  const [postings, stored] = await Promise.all([postingsForCheck(task.jobIds), storedChecks(resume.id, task.jobIds)]);
 
   const plans: Plan[] = [];
   for (const posting of postings) {
@@ -230,7 +230,7 @@ async function run(task: Task): Promise<void> {
     if (lineNos.length === 0) {
       // Nothing to ask the model: a posting with nothing checkable scores the
       // typical rate, and stale lines no longer on it are simply cleared.
-      await writeCheck(task.email, {
+      await writeCheck(resume, {
         jobId: posting.jobId,
         resumeVersion: resume.version,
         linesAt: posting.linesAt,
@@ -295,12 +295,12 @@ async function checkBatch(resume: StoredResume, batch: Plan[]): Promise<void> {
     }
     const graded = verifyGrades(answer, remaining, citable);
     // The resume may have changed while the model was reading the old one.
-    const latest = await getResume(resume.email);
-    if (!latest || latest.version !== resume.version) return;
+    const latest = await activeResume(resume.email);
+    if (!latest || latest.id !== resume.id || latest.version !== resume.version) return;
     for (const { jobId, grades } of graded) {
       const plan = batch.find((p) => p.posting.jobId === jobId)!;
       const merged = mergeGrades(plan.base, grades);
-      await writeCheck(resume.email, {
+      await writeCheck(resume, {
         jobId,
         resumeVersion: resume.version,
         linesAt: plan.posting.linesAt!,

@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { useResume } from "@/hooks/use-resume";
+import { useResume, type ResumeSummary } from "@/hooks/use-resume";
 import type { Capability, EvidenceType, UserInfo } from "@/lib/resume/types";
 import { normalizeSkill } from "@/lib/resume/skill-utils";
 import { SkillPick } from "./skill-pick";
+import { MAX_RESUMES } from "@/lib/line-check/types";
 
 interface ResumeUploadProps {
   open: boolean;
@@ -22,7 +23,14 @@ type InputMode = "file" | "text";
 const ACCEPT = ".pdf,.doc,.docx,.txt,.md";
 
 export function ResumeUpload({ open, onClose, onOpen }: ResumeUploadProps) {
-  const { resumeText, profile, meta, userInfo, extraSkills, hasResume, setResume, setProfile, setUserInfo, setExtraSkills, clearResume } = useResume();
+  const {
+    resumeText, profile, meta, userInfo, extraSkills, hasResume,
+    resumes, activeResumeId,
+    setResume, setProfile, setUserInfo, setExtraSkills, clearResume,
+    startNewResume, switchResume, renameResume, removeResume,
+  } = useResume();
+  // Uploading one to keep alongside the others rather than over the one in use.
+  const [adding, setAdding] = useState(false);
   const [mode, setMode] = useState<InputMode>("file");
   const [textInput, setTextInput] = useState("");
   const [parsing, setParsing] = useState(false);
@@ -87,6 +95,7 @@ export function ResumeUpload({ open, onClose, onOpen }: ResumeUploadProps) {
       const json = await res.json();
       if (json.success) {
         setProfile(json.data);
+        setAdding(false);
         if (!openRef.current) setNotice({ ok: true });
       } else {
         setError(json.error ?? "Failed to analyze resume");
@@ -111,7 +120,16 @@ export function ResumeUpload({ open, onClose, onOpen }: ResumeUploadProps) {
     clearResume();
     setTextInput("");
     setError("");
+    setAdding(false);
   }, [clearResume]);
+
+  // The upload that follows is kept as another resume, and put in use.
+  const handleAddAnother = useCallback(() => {
+    startNewResume();
+    setAdding(true);
+    setMode("file");
+    setError("");
+  }, [startNewResume]);
 
   useEffect(() => {
     if (!open) return;
@@ -158,7 +176,20 @@ export function ResumeUpload({ open, onClose, onOpen }: ResumeUploadProps) {
         </div>
 
         <div className="px-6 py-5 space-y-4">
-          {hasResume && profile ? (
+          {resumes.length > 0 && (
+            <ResumeList
+              resumes={resumes}
+              activeId={activeResumeId}
+              busy={parsing || extracting}
+              adding={adding}
+              onUse={switchResume}
+              onRename={renameResume}
+              onRemove={removeResume}
+              onAdd={handleAddAnother}
+              onCancelAdd={() => setAdding(false)}
+            />
+          )}
+          {hasResume && profile && !adding ? (
             <ProfileView
               profile={profile}
               meta={meta}
@@ -244,6 +275,121 @@ export function ResumeUpload({ open, onClose, onOpen }: ResumeUploadProps) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// The student's resumes, one of them in use. Only the one in use is scored and
+// checked against the postings; the others keep the checks made while they
+// were, so going back to one shows its scores at once.
+function ResumeList({
+  resumes,
+  activeId,
+  busy,
+  adding,
+  onUse,
+  onRename,
+  onRemove,
+  onAdd,
+  onCancelAdd,
+}: {
+  resumes: ResumeSummary[];
+  activeId: string | null;
+  busy: boolean;
+  adding: boolean;
+  onUse: (id: string) => void;
+  onRename: (id: string, label: string) => void;
+  onRemove: (id: string) => void;
+  onAdd: () => void;
+  onCancelAdd: () => void;
+}) {
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [switching, setSwitching] = useState<string | null>(null);
+
+  const use = (id: string) => {
+    setSwitching(id);
+    onUse(id);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-xs font-semibold text-slate">Your resumes ({resumes.length} of {MAX_RESUMES})</p>
+        {adding ? (
+          <button onClick={onCancelAdd} className="text-xs text-steel hover:text-charcoal">
+            Cancel
+          </button>
+        ) : (
+          resumes.length < MAX_RESUMES && (
+            <button onClick={onAdd} disabled={busy} className="text-xs font-medium text-primary hover:underline disabled:opacity-40">
+              Add another
+            </button>
+          )
+        )}
+      </div>
+
+      <ul className="divide-y divide-hairline-soft border border-hairline rounded-lg">
+        {resumes.map((r) => {
+          const inUse = r.id === activeId;
+          return (
+            <li key={r.id} className="flex items-center gap-2 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                {renaming === r.id ? (
+                  <input
+                    autoFocus
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={() => {
+                      if (draft.trim()) onRename(r.id, draft.trim());
+                      setRenaming(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                      if (e.key === "Escape") setRenaming(null);
+                    }}
+                    maxLength={80}
+                    className="w-full h-7 px-2 rounded border border-primary/40 text-[13px] text-ink bg-canvas focus:outline-none"
+                  />
+                ) : (
+                  <p className="text-[13px] text-ink truncate">
+                    {r.label ?? r.fileName ?? "Resume"}
+                    {inUse && <span className="ml-2 text-[10.5px] font-semibold text-good bg-good/10 px-1.5 py-0.5 rounded-full">In use</span>}
+                  </p>
+                )}
+                <p className="text-[11px] text-stone">
+                  {r.checked > 0 ? `${r.checked.toLocaleString()} postings checked` : "not checked yet"} ·{" "}
+                  {new Date(r.updatedAt).toLocaleDateString()}
+                </p>
+              </div>
+              {!inUse && (
+                <button
+                  onClick={() => use(r.id)}
+                  disabled={switching !== null}
+                  className="text-xs font-medium text-primary hover:underline disabled:opacity-40 shrink-0"
+                >
+                  {switching === r.id ? "Switching…" : "Use"}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setDraft(r.label ?? r.fileName ?? "");
+                  setRenaming(r.id);
+                }}
+                className="text-xs text-steel hover:text-charcoal shrink-0"
+              >
+                Rename
+              </button>
+              {resumes.length > 1 && (
+                <button onClick={() => onRemove(r.id)} className="text-xs text-error/80 hover:text-error shrink-0">
+                  Delete
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {adding && <p className="text-[11.5px] text-slate">Upload the resume to keep alongside the others — it goes into use once it&apos;s read.</p>}
     </div>
   );
 }

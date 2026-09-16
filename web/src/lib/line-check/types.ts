@@ -1,6 +1,9 @@
 // Line-by-line matching: a posting is split into its lines, each line tagged
 // once for everyone, and every student's resume checked against each line.
 
+// Resumes a student may keep at once; one of them is in use.
+export const MAX_RESUMES = 5;
+
 // Where on the posting a line came from. "summary" is read only when the
 // posting has neither a Required skills nor a Responsibilities section.
 export type LineSection = "req" | "duty" | "summary";
