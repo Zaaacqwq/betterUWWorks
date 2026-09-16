@@ -13,7 +13,7 @@ For every posting line output [line, grade, evidence]:
 - grade 1: partly, or only something close (a related tool, a smaller version of the work).
 - grade 0: the resume doesn't show it.
 - grade -1: nothing a resume could show.
-- evidence: the number of the resume line that shows it best (5 for R5), or 0.
+- evidence: the number of the resume line that shows it best (5 for R5), or 0. Where work or a project shows it, cite that line rather than a skills list.
 
 Rules:
 - A line naming alternatives ("Python, Go, or a similar language") is met by any one of them.

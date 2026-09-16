@@ -23,6 +23,16 @@ const GRADE_CHIP: Record<number, { label: string; className: string }> = {
   [-1]: { label: "Not scored", className: "bg-hairline-soft text-steel" },
 };
 
+// Where the resume showed it, and what that is worth (lib/line-check/score.ts).
+const EVIDENCE_LABEL: Record<string, string> = {
+  work: "from your work experience",
+  project: "from a project",
+  education: "from your education",
+  other: "from your resume",
+  skills: "from your skills list — counts for half",
+  added: "a skill you added — counts for half",
+};
+
 const UNSCORED_REASON: Record<string, string> = {
   eligibility: "Eligibility — see the warnings above",
   outcome: "What you'd gain",
@@ -172,10 +182,15 @@ function LineRow({ line }: { line: CheckedLine }) {
           ))}
         </p>
         {line.evidence && (
-          <p className="text-[12px] text-steel leading-snug line-clamp-2" title={line.evidence}>
-            <span className="text-stone">Your resume: </span>
-            {line.evidence}
-          </p>
+          <>
+            <p className="text-[12px] text-steel leading-snug line-clamp-2" title={line.evidence}>
+              <span className="text-stone">Your resume: </span>
+              {line.evidence}
+            </p>
+            {line.evidenceSection && (
+              <p className="text-[11px] text-stone">{EVIDENCE_LABEL[line.evidenceSection]}</p>
+            )}
+          </>
         )}
       </div>
     </li>

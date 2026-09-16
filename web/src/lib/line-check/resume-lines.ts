@@ -1,6 +1,6 @@
 import type { SkillLevel } from "@/lib/resume/types";
 import { normalizeSkill } from "@/lib/resume/skill-utils";
-import type { ResumeLine } from "./types";
+import type { ResumeLine, ResumeSection } from "./types";
 
 // The resume as the checks see it: numbered lines R1, R2, ... that a check can
 // cite, followed by a line for each skill the student added or rated on the
@@ -101,8 +101,42 @@ export function resumeTextLines(text: string): string[] {
     .slice(0, MAX_RESUME_LINES);
 }
 
+// A resume's own headings, however they are capitalised or worded. Read in
+// order down the page: every line belongs to the heading above it.
+const SECTION_HEADINGS: [ResumeSection, RegExp][] = [
+  ["work", /^(work|professional|industry|employment|relevant)?\s*experience\b|^employment\b|^internships?\b|^work history\b|^co-?op experience\b/i],
+  ["project", /^(personal |academic |technical |selected )?projects?\b|^portfolio\b/i],
+  ["education", /^education\b|^academics?\b|^coursework\b|^courses\b/i],
+  ["skills", /^(technical |core |key )?skills\b|^technologies\b|^technical summary\b|^tools\b|^languages\b(?!.{0,20}spoken)/i],
+  ["other", /^(summary|objective|profile|about|awards?|honou?rs?|certifications?|activities|leadership|volunteer|interests|publications|additional|references)\b/i],
+];
+
+/** The section a line starts, if it is one of the resume's headings. */
+export function sectionOf(line: string): ResumeSection | null {
+  // A heading is short, or a title run together with what follows it — the
+  // start of the line is what says which section it opens.
+  const head = line.slice(0, 40);
+  for (const [section, pattern] of SECTION_HEADINGS) {
+    if (pattern.test(head.trim())) return section;
+  }
+  return null;
+}
+
+/** Files each line under the heading above it; anything before the first is "other". */
+export function classifyLines(lines: ResumeLine[]): ResumeLine[] {
+  let current: ResumeSection = "other";
+  return lines.map((line) => {
+    if (line.source === "skill") return { ...line, section: "added" as const };
+    const heading = sectionOf(line.text);
+    if (heading) current = heading;
+    return { ...line, section: current };
+  });
+}
+
 export function buildResumeLines(text: string): ResumeLine[] {
-  return resumeTextLines(text).map((t, i) => ({ n: i + 1, text: t, source: "resume", active: true }));
+  return classifyLines(
+    resumeTextLines(text).map((t, i) => ({ n: i + 1, text: t, source: "resume" as const, active: true }))
+  );
 }
 
 const LEVEL_WORDS: Record<Exclude<SkillLevel, "none">, string> = {
@@ -164,12 +198,19 @@ export function updateSkillLines(current: ResumeLine[], wanted: string[]): Skill
   let next = lines.reduce((max, l) => Math.max(max, l.n), 0) + 1;
   for (const text of wanted) {
     if (activeSkill.has(text)) continue;
-    const line: ResumeLine = { n: next++, text, source: "skill", active: true };
+    const line: ResumeLine = { n: next++, text, source: "skill", active: true, section: "added" };
     lines.push(line);
     added.push(line);
     activeSkill.add(text);
   }
   return { lines, added, removed };
+}
+
+/** Where each numbered line sits, for weighing what a match rests on. Lines
+ * stored before sections were read are filed on the spot. */
+export function resumeSections(lines: ResumeLine[]): Map<number, ResumeSection> {
+  const filed = lines.some((l) => l.section) ? lines : classifyLines(lines);
+  return new Map(filed.map((l) => [l.n, l.section ?? "other"]));
 }
 
 /** The resume as it goes into a check: active lines, numbered as stored. */

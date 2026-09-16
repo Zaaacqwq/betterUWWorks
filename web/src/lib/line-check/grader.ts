@@ -6,7 +6,7 @@ import { migrateProfile } from "@/lib/resume/migrate-profile";
 import type { ResumeProfile, UserInfo } from "@/lib/resume/types";
 import type { StoredResume } from "@/db/schema";
 import { LINE_GRADES_SYSTEM, lineGradesPrompt, mergeGrades, verifyGrades, type PostingToGrade } from "./grade";
-import { DISOWNED_PREFIX, renderResume } from "./resume-lines";
+import { DISOWNED_PREFIX, renderResume, resumeSections } from "./resume-lines";
 import { isCheckable, scoreLines } from "./score";
 import type { LineGrade } from "./types";
 import {
@@ -226,6 +226,7 @@ async function run(task: Task): Promise<void> {
   if (!resume) return;
   const [postings, stored] = await Promise.all([postingsForCheck(task.jobIds), storedChecks(resume.id, task.jobIds)]);
 
+  const sections = resumeSections(resume.lines);
   const plans: Plan[] = [];
   for (const posting of postings) {
     if (!posting.linesAt) continue;
@@ -243,7 +244,7 @@ async function run(task: Task): Promise<void> {
         resumeVersion: resume.version,
         linesAt: posting.linesAt,
         grades: base,
-        skills: scoreLines(posting.lines, base).skills,
+        skills: scoreLines(posting.lines, base, sections).skills,
       });
       continue;
     }
@@ -279,6 +280,7 @@ async function checkBatch(resume: StoredResume, batch: Plan[]): Promise<void> {
     lines: posting.lines.filter((l) => lineNos.includes(l.lineNo)),
   }));
   const citable = new Set(resume.lines.filter((l) => l.active && !l.text.startsWith(DISOWNED_PREFIX)).map((l) => l.n));
+  const sections = resumeSections(resume.lines);
   const resumeText = renderResume(resume.lines);
 
   let remaining = toGrade;
@@ -316,7 +318,7 @@ async function checkBatch(resume: StoredResume, batch: Plan[]): Promise<void> {
         resumeVersion: resume.version,
         linesAt: plan.posting.linesAt!,
         grades: merged,
-        skills: scoreLines(plan.posting.lines, merged).skills,
+        skills: scoreLines(plan.posting.lines, merged, sections).skills,
       });
     }
     const done = new Set(graded.map((g) => g.jobId));

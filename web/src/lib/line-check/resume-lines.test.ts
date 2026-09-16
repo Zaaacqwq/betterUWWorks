@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   DISOWNED_PREFIX,
   buildResumeLines,
+  classifyLines,
+  resumeSections,
+  sectionOf,
   renderResume,
   resumeTextLines,
   skillLines,
@@ -64,6 +67,47 @@ describe("resumeTextLines on a resume with its line breaks", () => {
       "• Maintained test infrastructure, resolving build and test execution issues.",
       "• Wrote tests",
     ]);
+  });
+});
+
+describe("sections", () => {
+  it("recognises a resume's own headings, however they're written", () => {
+    expect(sectionOf("EXPERIENCE")).toBe("work");
+    expect(sectionOf("Work Experience")).toBe("work");
+    expect(sectionOf("PROJECTS")).toBe("project");
+    expect(sectionOf("Technical Skills")).toBe("skills");
+    expect(sectionOf("EDUCATION Bachelor of Applied Science in Computer Engineering")).toBe("education");
+    expect(sectionOf("• Built a RAG application with FastAPI")).toBeNull();
+  });
+
+  it("files each line under the heading above it", () => {
+    const lines = buildResumeLines(
+      ["Jane Doe", "SKILLS", "Languages: Java, Python", "EXPERIENCE", "Intern at Acme", "• Wrote Java services", "PROJECTS", "• Built a game"].join("\n")
+    );
+    expect(lines.map((l) => [l.text, l.section])).toEqual([
+      ["Jane Doe", "other"],
+      ["SKILLS", "skills"],
+      ["Languages: Java, Python", "skills"],
+      ["EXPERIENCE", "work"],
+      ["Intern at Acme", "work"],
+      ["• Wrote Java services", "work"],
+      ["PROJECTS", "project"],
+      ["• Built a game", "project"],
+    ]);
+  });
+
+  it("files a skill the student added under what they told the site", () => {
+    const lines = updateSkillLines(buildResumeLines("EXPERIENCE\nIntern at Acme"), ["Added by the student: Docker (knows it well)"]).lines;
+    expect(lines.at(-1)?.section).toBe("added");
+  });
+
+  it("files lines stored before sections were read", () => {
+    const old = [
+      { n: 1, text: "PROJECTS", source: "resume" as const, active: true },
+      { n: 2, text: "• Built a game", source: "resume" as const, active: true },
+    ];
+    expect(classifyLines(old).map((l) => l.section)).toEqual(["project", "project"]);
+    expect(resumeSections(old).get(2)).toBe("project");
   });
 });
 

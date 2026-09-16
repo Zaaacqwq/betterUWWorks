@@ -32,6 +32,12 @@ export type Grade = 2 | 1 | 0 | -1;
 // [line number, grade, resume line cited as evidence or 0]
 export type LineGrade = [number, Grade, number];
 
+// Where on the resume a line sits. What a line is worth as evidence depends on
+// it: work someone was paid for says more than a project, and a project says
+// more than a name in a skills list.
+export const RESUME_SECTIONS = ["work", "project", "education", "skills", "added", "other"] as const;
+export type ResumeSection = (typeof RESUME_SECTIONS)[number];
+
 // A numbered line of the resume as the checks see it. `n` never changes once
 // given within a resume version, so a stored citation keeps pointing at the
 // same words; a skill the student takes back is kept, inactive.
@@ -40,4 +46,6 @@ export interface ResumeLine {
   text: string;
   source: "resume" | "skill";
   active: boolean;
+  // Missing on lines stored before sections were read; treated as "other".
+  section?: ResumeSection;
 }

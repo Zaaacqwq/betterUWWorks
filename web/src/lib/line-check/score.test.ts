@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isCheckable, lineWeight, scoreLines, type ScoredLineTags } from "./score";
-import type { LineGrade } from "./types";
+import { evidenceCredit, isCheckable, lineWeight, scoreLines, type ScoredLineTags } from "./score";
+import type { LineGrade, ResumeSection } from "./types";
 
 const req = (lineNo: number, extra: Partial<ScoredLineTags> = {}): ScoredLineTags => ({
   lineNo,
@@ -20,7 +20,31 @@ describe("lineWeight", () => {
   });
 });
 
+describe("evidenceCredit", () => {
+  it("is worth most from work, less from a project, half from a claim", () => {
+    expect(evidenceCredit(2, "work")).toBe(1);
+    expect(evidenceCredit(2, "project")).toBeCloseTo(0.85);
+    expect(evidenceCredit(2, "skills")).toBe(0.5);
+    expect(evidenceCredit(2, "added")).toBe(0.5);
+    expect(evidenceCredit(1, "work")).toBe(0.5);
+    expect(evidenceCredit(0, "work")).toBe(0);
+  });
+
+  it("takes a match with nothing cited as the weakest evidence", () => {
+    expect(evidenceCredit(2, null)).toBe(0.5);
+  });
+});
+
 describe("scoreLines", () => {
+  it("scores the same line lower when only the skills list shows it", () => {
+    const line: ScoredLineTags[] = [req(1), req(2), req(3)];
+    const grades: LineGrade[] = [[1, 2, 10], [2, 2, 10], [3, 2, 10]];
+    const from = (section: ResumeSection) => scoreLines(line, grades, new Map([[10, section]])).skills;
+    expect(from("work")).toBeGreaterThan(from("project"));
+    expect(from("project")).toBeGreaterThan(from("skills"));
+    expect(from("skills")).toBeGreaterThan(scoreLines(line, [[1, 0, 0], [2, 0, 0], [3, 0, 0]]).skills);
+  });
+
   it("works the BrainCo example through to 43.4", () => {
     // 5 requirements, 2 traits, 7 duties, as checked against the owner's resume.
     const lines: ScoredLineTags[] = [
