@@ -20,7 +20,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!row) return Response.json({ success: false, error: "Job not found" }, { status: 404 });
   if (row.summary !== null) return Response.json({ success: true, data: { summary: row.summary || null } });
 
-  const refusal = takeAiQuota(request, "summary");
+  const refusal = await takeAiQuota(request, "summary");
   if (refusal) return refusal;
   const run = await runPending(summaryExtractor, 1, { jobIds: [id] });
   if (run.failures.length > 0) {

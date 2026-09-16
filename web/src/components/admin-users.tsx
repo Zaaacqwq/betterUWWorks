@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { AppUser, UserStatus } from "@/db/schema";
 import { useViewer } from "@/hooks/use-viewer";
 import { ChevronLeftIcon } from "./icons";
+import { AdminLimits } from "./admin-limits";
+import { UserResumes } from "./admin-resumes";
 
 // The owner's list of everyone who has signed in with Google, newest requests
 // first, with the one decision that matters: may they see the postings.
@@ -111,6 +113,7 @@ export function AdminUsers() {
           );
         })
       )}
+      <AdminLimits />
     </Frame>
   );
 }
@@ -128,7 +131,8 @@ function UserRow({
 }) {
   const initial = (user.name || user.email).trim().charAt(0).toUpperCase();
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
+    <li className="px-3 py-2.5 space-y-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       <span className="w-8 h-8 shrink-0 rounded-full bg-primary-tint text-primary-deep grid place-items-center text-[13px] font-semibold">
         {initial}
       </span>
@@ -173,6 +177,8 @@ function UserRow({
           )}
         </div>
       )}
+      </div>
+      <UserResumes email={user.email} />
     </li>
   );
 }

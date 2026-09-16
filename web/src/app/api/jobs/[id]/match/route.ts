@@ -92,7 +92,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   let advice: ApplicationAdvice = { highlights: [], gaps: [], checks: facts.checks };
   if (facts.matched.length > 0 || facts.missing.length > 0) {
-    const refusal = takeAiQuota(request, "match");
+    const refusal = await takeAiQuota(request, "match");
     if (refusal) return refusal;
     const prompt = applicationAdvicePrompt({
       title: job.title,

@@ -47,7 +47,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .limit(1);
   if (!job) return Response.json({ success: false, error: "Job not found" }, { status: 404 });
 
-  const refusal = takeAiQuota(request, "cover");
+  const refusal = await takeAiQuota(request, "cover");
   if (refusal) return refusal;
 
   const { resumeText, program, termNumber, note } = parsed.data;

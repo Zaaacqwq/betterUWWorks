@@ -107,6 +107,14 @@ export const appUsers = pgTable("app_users", {
 
 export type AppUser = typeof appUsers.$inferSelect;
 
+// What the owner can change while the site runs (drizzle/0006_settings.sql).
+export const settings = pgTable("settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: text("updated_by"),
+});
+
 // Line-by-line matching (drizzle/0004_line_check.sql, lib/line-check).
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({

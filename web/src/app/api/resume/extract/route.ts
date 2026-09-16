@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const refusal = takeAiQuota(request, "resume");
+  const refusal = await takeAiQuota(request, "resume");
   if (refusal) return refusal;
 
   const { text: raw, finishReason } = await generateText({

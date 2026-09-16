@@ -3,7 +3,7 @@ import { and, desc, eq, gt, inArray, isNotNull, isNull, ne, or, sql } from "driz
 import { db } from "@/db";
 import { jobLines, jobs, lineGrades, resumes, type StoredResume } from "@/db/schema";
 import { adminEmails } from "@/lib/auth/viewer";
-import { torontoDay } from "@/lib/ai/quota";
+import { aiLimits, torontoDay } from "@/lib/ai/quota";
 import type { SkillLevel } from "@/lib/resume/types";
 import { buildResumeLines, skillLines, updateSkillLines } from "./resume-lines";
 import { MAX_RESUMES, type LineGrade, type ResumeLine, type TaggedLine } from "./types";
@@ -12,11 +12,6 @@ import { MAX_RESUMES, type LineGrade, type ResumeLine, type TaggedLine } from ".
 // resumes; one is in use, and only that one is scored and checked in the
 // background. Each resume's checks are kept, so going back to one already
 // checked shows its scores at once.
-
-// New resume versions a student can have checked in a day, across all their
-// resumes; each is ~2M tokens over every open posting. Later ones are kept,
-// and checked tomorrow.
-export const DAILY_FULL_CHECKS = 3;
 
 export interface ResumeInput {
   text: string;
@@ -179,13 +174,20 @@ export async function deleteAllResumes(email: string): Promise<void> {
   });
 }
 
-/** Past today's allowance of new versions: this one waits for tomorrow. */
+/**
+ * Past today's allowance of new versions — counted across all of a student's
+ * resumes, each one costing a pass over every open posting — so this one waits
+ * for tomorrow.
+ */
 export async function isPaused(email: string, now = new Date()): Promise<boolean> {
   if (adminEmails().has(email)) return false;
   const day = torontoDay(now);
-  const rows = await db.select({ fullChecks: resumes.fullChecks }).from(resumes).where(eq(resumes.email, email));
+  const [rows, limits] = await Promise.all([
+    db.select({ fullChecks: resumes.fullChecks }).from(resumes).where(eq(resumes.email, email)),
+    aiLimits(),
+  ]);
   const started = rows.reduce((n, r) => n + (r.fullChecks.day === day ? (r.fullChecks.count ?? 0) : 0), 0);
-  return started > DAILY_FULL_CHECKS;
+  return started > limits.fullChecks;
 }
 
 /** The resume each student has in use: what the background checking works through. */

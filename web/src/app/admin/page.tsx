@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "Access · betterUWWorks",
 };
 
-// Only a shell: the list comes from /api/admin/users, which only the owner may read.
+// Only a shell: what it shows comes from /api/admin/*, which only the owner may read.
 export default function AdminPage() {
   return <AdminUsers />;
 }
