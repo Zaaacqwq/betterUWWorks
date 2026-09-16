@@ -84,6 +84,19 @@ export async function GET(request: NextRequest) {
     conditions.push(sql`not coalesce(${jobs.aiDetails} @> ${required}::jsonb, false)`);
   }
 
+  // Postings that have closed, or that the last few syncs no longer saw, are
+  // left out unless asked for: WaterlooWorks has dropped them, and they are
+  // never checked against a resume either. The "no longer listed" half only
+  // applies while syncing is itself healthy — after a broken sync every
+  // posting looks unlisted, and the list must not empty itself.
+  if (params.get("closed") !== "1") {
+    conditions.push(sql`(${jobs.deadlineAt} is null or ${jobs.deadlineAt} > now())`);
+    conditions.push(
+      sql`(${jobs.updatedAt} >= now() - interval '3 days'
+           or (select max(updated_at) from jobs) < now() - interval '36 hours')`
+    );
+  }
+
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
   const sortColumn = {

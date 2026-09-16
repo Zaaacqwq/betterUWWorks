@@ -95,6 +95,8 @@ export interface Filters {
   minRating: string;
   // Requirement kinds to hide postings for, comma-separated.
   hideRequirement: string;
+  // "1" to bring back postings that have closed or left the board.
+  closed: string;
   sort: string;
   order: "asc" | "desc";
 }

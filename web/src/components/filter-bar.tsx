@@ -82,6 +82,7 @@ export function FilterBar({
         {filters.hideRequirement && (
           <ValueChip label={hiddenLabel(filters.hideRequirement)} onClear={() => onChange("hideRequirement", "")} />
         )}
+        {filters.closed === "1" && <ValueChip label="Closed shown" onClear={() => onChange("closed", "")} />}
         <MoreFilters filters={filters} options={options} onChange={onChange} />
         {activeFilterCount > 0 && (
           <button onClick={onClearAll} className="h-7 px-1.5 text-[12.5px] text-steel hover:text-ink transition-colors">
@@ -266,6 +267,20 @@ function MoreFilters({
             options={REQUIREMENT_OPTIONS}
             onChange={(v) => onChange("hideRequirement", v)}
           />
+          <label className="flex items-center gap-2.5 px-1 py-1 rounded hover:bg-surface cursor-pointer">
+            <input
+              type="checkbox"
+              checked={filters.closed === "1"}
+              onChange={(e) => onChange("closed", e.target.checked ? "1" : "")}
+              className="w-3.5 h-3.5 accent-primary shrink-0"
+            />
+            <span className="text-[12.5px] leading-snug text-charcoal">
+              Show closed postings
+              <span className="block text-[11px] text-stone">
+                Applications shut, or no longer on WaterlooWorks. They aren&apos;t checked against your resume.
+              </span>
+            </span>
+          </label>
           <div className="grid grid-cols-2 gap-2 pt-1">
             <NumberField
               id="filter-min-pay"

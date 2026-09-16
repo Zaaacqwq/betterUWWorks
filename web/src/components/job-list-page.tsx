@@ -44,6 +44,7 @@ const DEFAULT_FILTERS: Filters = {
   minPay: "",
   minRating: "",
   hideRequirement: "",
+  closed: "",
   sort: "match",
   order: "desc",
 };
@@ -134,6 +135,7 @@ export function JobListPage() {
     if (filters.minPay) params.set("minPay", filters.minPay);
     if (filters.minRating) params.set("minRating", filters.minRating);
     if (filters.hideRequirement) params.set("hideRequirement", filters.hideRequirement);
+    if (filters.closed) params.set("closed", filters.closed);
     params.set("page", "1");
     params.set("limit", "9999");
 
@@ -184,7 +186,10 @@ export function JobListPage() {
 
     setClearState("clearing");
     try {
-      const resp = await fetch(`/api/jobs?expected=${catalogTotal ?? 0}`, { method: "DELETE" });
+      // The server checks the whole table, closed postings included, while the
+      // list only counts what it shows.
+      const all = await fetch("/api/jobs?limit=1&closed=1").then((r) => r.json());
+      const resp = await fetch(`/api/jobs?expected=${all?.meta?.total ?? -1}`, { method: "DELETE" });
       const result = await resp.json();
       if (!resp.ok || !result.success) {
         setClearError(result.error || resp.statusText);
@@ -197,7 +202,7 @@ export function JobListPage() {
     } finally {
       setClearState("idle");
     }
-  }, [clearState, catalogTotal, handleRefresh]);
+  }, [clearState, handleRefresh]);
 
   const cancelClear = useCallback(() => {
     setClearState((s) => (s === "confirming" ? "idle" : s));
