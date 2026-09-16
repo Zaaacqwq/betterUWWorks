@@ -11,6 +11,7 @@ import { useMatchScores } from "@/hooks/use-match-scores";
 import { useLineScores } from "@/hooks/use-line-scores";
 import { ResumeUpload } from "./resume-upload";
 import { CheckProgress } from "./check-progress";
+import { Pagination } from "./pagination";
 import { AppHeader, type ClearState } from "./app-header";
 import { AccessGate } from "./access-gate";
 import { OnboardingTour } from "./onboarding-tour";
@@ -406,25 +407,7 @@ export function JobListPage() {
             )}
 
             {!loading && totalPages > 1 && (
-              <div className="flex items-center justify-center gap-3 pt-4 pb-2">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={safePage <= 1}
-                  className={PAGE_BUTTON}
-                >
-                  Previous
-                </button>
-                <span className="text-[12.5px] text-steel tabular-nums">
-                  Page {safePage} of {totalPages}
-                </span>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={safePage >= totalPages}
-                  className={PAGE_BUTTON}
-                >
-                  Next
-                </button>
-              </div>
+              <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
             )}
           </div>
         </div>
