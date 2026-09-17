@@ -17,7 +17,6 @@ const WW_ORIGIN = "https://waterlooworks.uwaterloo.ca";
 const SSO_LOGIN_URL = `${WW_ORIGIN}/waterloo.htm?action=login`;
 
 const DEFAULT_RUN_TIME = "06:00";
-const DAY_MS = 24 * 60 * 60 * 1000;
 // How long a sign-in that needs nobody is given before asking for a person.
 const SILENT_SIGN_IN_MS = 3 * 60 * 1000;
 const SIGN_IN_GIVE_UP_MS = 12 * 60 * 60 * 1000;
@@ -75,6 +74,17 @@ function nextRunAt(time, now = Date.now()) {
   return at.getTime();
 }
 
+// The daily run time that most recently passed: today's if it is already past,
+// otherwise yesterday's. Used to tell whether the current day's run has been
+// served yet, without depending on a fixed 24h gap.
+function lastScheduledBefore(time, now = Date.now()) {
+  const [h, m] = (/^\d{1,2}:\d{2}$/.test(time || "") ? time : DEFAULT_RUN_TIME).split(":").map(Number);
+  const at = new Date(now);
+  at.setHours(h, m, 0, 0);
+  if (at.getTime() > now) at.setDate(at.getDate() - 1);
+  return at.getTime();
+}
+
 // Alarms are not guaranteed to outlive a browser restart, so this runs on every
 // start as well as whenever the settings change.
 async function scheduleDaily() {
@@ -96,7 +106,13 @@ async function catchUpIfOverdue() {
   const settings = await getSettings();
   const run = await getAutoRun();
   if (!settings.autoRun || run.phase) return;
-  if (Date.now() - (run.lastSuccessAt || 0) > DAY_MS) {
+  // Run when the most recently scheduled time has passed with no success since
+  // — i.e. Chrome was closed at that time and is only now coming up, as when a
+  // launchd job opens it for the daily scrape. A fixed 24h gap skipped a cold
+  // launch a few minutes before the previous day's success time; anchoring to
+  // the scheduled time instead serves every day's slot exactly once.
+  const target = lastScheduledBefore(settings.autoRunTime);
+  if ((run.lastSuccessAt || 0) < target) {
     chrome.alarms.create(CATCH_UP_ALARM, { when: Date.now() + 2 * 60 * 1000 });
   }
 }
@@ -198,13 +214,32 @@ async function loadInRunTab(url) {
 // Jobs", which may take a moment to be drawn after the page loads.
 async function waitForJobTable(tabId) {
   const ready = await ensureContentScript(tabId);
-  if (!ready.ok) return false;
+  if (!ready.ok) return { ok: false };
   for (let waited = 0; waited < TABLE_WAIT_MS; waited += 3000) {
     const shown = await toTab(tabId, "show-all-jobs", undefined, 40000);
-    if (shown?.ok) return true;
+    if (shown?.ok) return { ok: true };
+    // The board itself is closed to this account this term — retrying a page
+    // that will never fill only burns the run's time, so stop right away.
+    if (shown?.restricted) return { ok: false, restricted: true, message: shown.message };
     await sleep(3000);
   }
-  return false;
+  return { ok: false };
+}
+
+// The signed-in account has no access to the job board this term: it secured
+// employment, has not submitted its intentions, or is under an academic hold.
+// The board is the same for everyone eligible, so the fix is to sign the
+// daily-run Chrome into a group member who is still job-searching. Name who is
+// meant to be on duty when the popup records it.
+async function restrictedMessage() {
+  const onDuty = ((await getSettings()).scraperAccount || "").trim();
+  const who = onDuty ? ` On duty: ${onDuty}.` : "";
+  return (
+    "WaterlooWorks won't show this account any job-board postings this term — it's " +
+    "employed, hasn't submitted intentions, or is restricted. Sign the daily-run Chrome " +
+    "into a group member who is still job-searching (their board is open), then press Run now." +
+    who
+  );
 }
 
 async function anyTabSignedIn() {
@@ -222,7 +257,12 @@ const STEPS = {
   async open(run) {
     const tab = await loadInRunTab(run.listUrl);
     if (!isSignedIn(tab?.url)) return goSignIn(run.afterOpen);
-    if (!(await waitForJobTable(tab.id))) {
+    const table = await waitForJobTable(tab.id);
+    if (table.restricted) {
+      await finishAutoRun(false, await restrictedMessage());
+      return "stop";
+    }
+    if (!table.ok) {
       await finishAutoRun(
         false,
         `The job table didn't appear at ${run.listUrl}, even after pressing "All Jobs". Open it by hand and press Scrape job list once so the daily run learns the page.`

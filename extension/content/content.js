@@ -127,10 +127,27 @@
     return !!document.querySelector(TABLE_SEL);
   }
 
+  // When an account cannot use a job board this term — it has secured
+  // employment, has not submitted its intentions, or is under an academic hold
+  // — WaterlooWorks replaces the whole board with a short notice and never
+  // loads the table or getPostingData. Recognising it lets the daily run say
+  // "sign in a seeking account" instead of retrying a page that will never fill.
+  const RESTRICTION_RE = /to search for jobs,\s*ensure the following/i;
+
+  function boardRestrictionText() {
+    const main = document.querySelector("main") || document.body;
+    const text = (main.innerText || "").replace(/\s+/g, " ").trim();
+    return RESTRICTION_RE.test(text) ? text.slice(0, 300) : null;
+  }
+
   async function showAllJobs() {
     if (document.querySelector(TABLE_SEL)) return { ok: true };
     const button = findAllJobsButton();
-    if (!button) return { error: true, message: 'Neither the job table nor an "All Jobs" button is on this page' };
+    if (!button) {
+      const restricted = boardRestrictionText();
+      if (restricted) return { error: true, restricted: true, message: restricted };
+      return { error: true, message: 'Neither the job table nor an "All Jobs" button is on this page' };
+    }
     activate(button);
     try {
       await waitForElement(`${TABLE_SEL}, ${CARD_SEL}`, 30000);

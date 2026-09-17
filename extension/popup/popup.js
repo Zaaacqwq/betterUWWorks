@@ -38,6 +38,7 @@
   const inputAutoRun = $("inputAutoRun");
   const inputAutoRunTime = $("inputAutoRunTime");
   const inputNtfyTopic = $("inputNtfyTopic");
+  const inputScraperAccount = $("inputScraperAccount");
   const autoLine = $("autoLine");
   const autoMsg = $("autoMsg");
   const btnRunNow = $("btnRunNow");
@@ -353,8 +354,10 @@
       autoLine.textContent = `Running — ${PHASE_LABELS[run.phase] || run.phase}…`;
     } else {
       const schedule = settings.autoRun ? `Every day at ${settings.autoRunTime || "06:00"}` : "Off";
+      const onDuty = (settings.scraperAccount || "").trim();
+      const dutyText = onDuty ? ` · ${onDuty} on duty` : "";
       const lastText = last ? ` · last ${formatWhen(last.at)} ${last.ok ? "✓" : "failed"}` : "";
-      autoLine.textContent = schedule + lastText;
+      autoLine.textContent = schedule + dutyText + lastText;
       autoLine.classList.toggle("bad", !!last && !last.ok);
     }
     autoMsg.textContent = last?.message || "";
@@ -402,6 +405,7 @@
     inputAutoRun.checked = !!s.autoRun;
     inputAutoRunTime.value = s.autoRunTime || "06:00";
     inputNtfyTopic.value = s.ntfyTopic || "";
+    inputScraperAccount.value = s.scraperAccount || "";
     showWebLink(s.webUrl);
   });
 
@@ -457,6 +461,7 @@
       autoRun: inputAutoRun.checked,
       autoRunTime: inputAutoRunTime.value || "06:00",
       ntfyTopic,
+      scraperAccount: inputScraperAccount.value.trim().slice(0, 80),
     };
     chrome.storage.local.set({ buwSettings: settings }, () => {
       showWebLink(webUrl);
