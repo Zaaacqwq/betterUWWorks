@@ -90,7 +90,14 @@ function jobsList(url: URL): Response {
   const page = Math.max(1, parseInt(p.get("page") ?? "1", 10));
   const start = (page - 1) * limit;
   return ok(rows.slice(start, start + limit), {
-    meta: { total: rows.length, page, limit, totalPages: Math.max(1, Math.ceil(rows.length / limit)) },
+    meta: {
+      total: rows.length,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(rows.length / limit)),
+      // Nothing was ever brought over: the list says so in its own words.
+      syncedAt: null,
+    },
   });
 }
 

@@ -3,6 +3,8 @@
 import { usePopover } from "@/hooks/use-popover";
 import type { Filters } from "./types/job";
 import { HIDEABLE_REQUIREMENTS } from "@/lib/job-details/present";
+import { lastSync } from "@/lib/format";
+import { inDemo } from "@/lib/demo/mode";
 import { ArrowIcon, ChevronDownIcon, CloseIcon, PlusIcon } from "./icons";
 
 interface FilterOption {
@@ -28,6 +30,8 @@ interface FilterBarProps {
   shownCount: number;
   /** Rows in the whole table; null when it couldn't be counted. */
   catalogTotal: number | null;
+  /** When the extension last brought postings over; null while it is unknown. */
+  syncedAt: string | null;
   loading: boolean;
 }
 
@@ -60,6 +64,7 @@ export function FilterBar({
   onClearAll,
   shownCount,
   catalogTotal,
+  syncedAt,
   loading,
 }: FilterBarProps) {
   const set = (key: keyof Filters) => (v: string) => onChange(key, v);
@@ -126,7 +131,32 @@ export function FilterBar({
           </button>
         </div>
       </div>
+
+      <LastSync syncedAt={syncedAt} />
     </div>
+  );
+}
+
+// How old the list is. The board is scraped once a day, so a date more than two
+// days back is the scrape having missed rather than nothing having changed —
+// the import touches every posting it is sent, changed or not.
+function LastSync({ syncedAt }: { syncedAt: string | null }) {
+  if (inDemo()) {
+    return (
+      <p className="px-0.5 text-[11.5px] text-stone">
+        Sample postings, fixed in place · the real list is scraped daily
+      </p>
+    );
+  }
+
+  const sync = lastSync(syncedAt);
+  if (!sync) return null;
+
+  return (
+    <p className={`px-0.5 text-[11.5px] ${sync.stale ? "text-fair" : "text-stone"}`}>
+      Postings updated {sync.label}
+      {sync.stale ? " · the daily scrape hasn't run since" : " · scraped once a day"}
+    </p>
   );
 }
 

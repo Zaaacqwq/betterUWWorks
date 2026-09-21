@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deadlineInfo, matchTone, payTier } from "./format";
+import { deadlineInfo, lastSync, matchTone, payTier } from "./format";
 
 describe("payTier", () => {
   it("is grey under $20, green to $30, amber to $60, red from $60", () => {
@@ -56,5 +56,32 @@ describe("deadlineInfo away and tone", () => {
     const closed = deadlineInfo(at(8, 13), now);
     expect(closed?.away).toBe("Closed");
     expect(closed?.tone).toBe("neutral");
+  });
+});
+
+describe("lastSync", () => {
+  const now = new Date(2026, 8, 21, 14, 0); // Sep 21, 14:00 local
+  const at = (month: number, day: number, hour: number) => new Date(2026, month, day, hour).toISOString();
+
+  it("counts the last hours in hours and the rest in days", () => {
+    expect(lastSync(at(8, 21, 13), now)?.label).toBe("an hour ago");
+    expect(lastSync(at(8, 21, 9), now)?.label).toBe("5 hours ago");
+    expect(lastSync(at(8, 20, 9), now)?.label).toBe("yesterday");
+    expect(lastSync(at(8, 18, 9), now)?.label).toBe("3 days ago");
+  });
+
+  it("says just now for a sync still running", () => {
+    expect(lastSync(new Date(now.getTime() - 4 * 60 * 1000).toISOString(), now)?.label).toBe("just now");
+  });
+
+  it("calls a board older than two days stale, since it is scraped daily", () => {
+    expect(lastSync(at(8, 21, 9), now)?.stale).toBe(false);
+    expect(lastSync(at(8, 20, 9), now)?.stale).toBe(false);
+    expect(lastSync(at(8, 18, 9), now)?.stale).toBe(true);
+  });
+
+  it("has nothing to say without a sync, or about a date it can't read", () => {
+    expect(lastSync(null, now)).toBeNull();
+    expect(lastSync("not a date", now)).toBeNull();
   });
 });

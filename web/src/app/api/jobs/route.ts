@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
       ? asc(sortColumn)
       : desc(sortColumn);
 
-  const [results, countResult] = await Promise.all([
+  const [results, countResult, syncResult] = await Promise.all([
     db
       .select({
         id: jobs.id,
@@ -153,16 +153,28 @@ export async function GET(request: NextRequest) {
       .select({ count: sql<number>`count(*)::int` })
       .from(jobs)
       .where(where),
+    // When the extension last brought postings over. Every posting it sends is
+    // touched, changed or not, so this is the last sync rather than the last
+    // posting to change — and it ignores the filters, since it is about the
+    // whole board.
+    db.select({ at: sql<Date | string | null>`max(${jobs.updatedAt})` }).from(jobs),
   ]);
 
   const total = countResult[0]?.count || 0;
+  const syncedAt = syncResult[0]?.at ?? null;
 
   return Response.json({
     success: true,
     // The posting's full text and most of the sentences its details were read
     // from are only needed in the detail view, which fetches its own.
     data: results.map((r) => ({ ...r, aiDetails: listedDetails(r.aiDetails) })),
-    meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      syncedAt: syncedAt ? new Date(syncedAt).toISOString() : null,
+    },
   });
 }
 

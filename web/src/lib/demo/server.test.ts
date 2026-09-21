@@ -22,6 +22,8 @@ describe("the demo's answers", () => {
     const { json } = await body("/api/jobs?limit=9999");
     expect(json.data).toHaveLength(DEMO_POSTINGS.length);
     expect(json.meta.total).toBe(DEMO_POSTINGS.length);
+    // Nothing was scraped for the demo, so it claims no sync.
+    expect(json.meta.syncedAt).toBeNull();
     expect(json.data[0]).toHaveProperty("parsedHourlyMin");
   });
 

@@ -137,3 +137,37 @@ export function deadlineInfo(deadlineAt: string | null, now: Date = new Date()):
     closed,
   };
 }
+
+export interface SyncInfo {
+  /** "just now", "5 hours ago", "yesterday", "3 days ago" */
+  label: string;
+  /** The board is scraped once a day, so anything older than two is behind. */
+  stale: boolean;
+}
+
+const STALE_DAYS = 2;
+
+/**
+ * When the postings were last brought over from WaterlooWorks, said the way
+ * someone would say it. Null when nothing has been imported yet.
+ */
+export function lastSync(syncedAt: string | null, now: Date = new Date()): SyncInfo | null {
+  if (!syncedAt) return null;
+  const at = new Date(syncedAt);
+  if (isNaN(at.getTime())) return null;
+
+  const minutes = Math.max(0, Math.round((now.getTime() - at.getTime()) / 60000));
+  const hours = Math.floor(minutes / 60);
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOfDay(now) - startOfDay(at)) / DAY_MS);
+
+  let label: string;
+  if (minutes < 5) label = "just now";
+  else if (hours < 1) label = `${minutes} minutes ago`;
+  else if (hours === 1) label = "an hour ago";
+  else if (days === 0) label = `${hours} hours ago`;
+  else if (days === 1) label = "yesterday";
+  else label = `${days} days ago`;
+
+  return { label, stale: days > STALE_DAYS };
+}

@@ -78,6 +78,8 @@ export function JobListPage({ demo = false }: { demo?: boolean } = {}) {
   const [catalogTotal, setCatalogTotal] = useState<number | null>(null);
   const [searchKey, setSearchKey] = useState(0);
   const [clearError, setClearError] = useState<string | null>(null);
+  // When the extension last brought postings over; null while it is unknown.
+  const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     locations: [], levels: [], arrangements: [], durations: [], workTerms: [], jobTypes: [],
   });
@@ -162,10 +164,16 @@ export function JobListPage({ demo = false }: { demo?: boolean } = {}) {
   const fetchCatalogTotal = useCallback(() => {
     api("/api/jobs?limit=1")
       .then((r) => r.json())
-      .then((data) => setCatalogTotal(data.success ? data.meta.total : null))
+      .then((data) => {
+        setCatalogTotal(data.success ? data.meta.total : null);
+        setSyncedAt(data.success ? (data.meta.syncedAt ?? null) : null);
+      })
       // Unknown total: the list shows its own count and delete stays off
       // until a refresh succeeds, since the server needs the exact number.
-      .catch(() => setCatalogTotal(null));
+      .catch(() => {
+        setCatalogTotal(null);
+        setSyncedAt(null);
+      });
   }, []);
 
   useEffect(() => {
@@ -387,6 +395,7 @@ export function JobListPage({ demo = false }: { demo?: boolean } = {}) {
               onClearAll={handleClearAll}
               shownCount={sortedJobs.length}
               catalogTotal={catalogTotal}
+              syncedAt={syncedAt}
               loading={loading}
             />
             {profile && lineScores && <CheckProgress progress={lineScores} />}
