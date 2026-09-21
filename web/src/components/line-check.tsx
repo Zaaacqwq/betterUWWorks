@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { onResumePushed } from "@/hooks/use-resume";
 import type { CheckDetail, CheckedLine } from "@/lib/line-check/detail";
+import { api } from "@/lib/demo/api";
 
 // The posting read line by line against the student's resume: what each line
 // asks, whether the resume shows it, and the resume line that does. A posting
@@ -198,7 +199,7 @@ function LineRow({ line }: { line: CheckedLine }) {
 }
 
 async function fetchDetail(jobId: string, method: "GET" | "POST", signal?: AbortSignal): Promise<CheckDetail> {
-  const res = await fetch(`/api/match/${jobId}`, { method, signal });
+  const res = await api(`/api/match/${jobId}`, { method, signal });
   const json = await res.json();
   if (!res.ok || !json?.success) throw new Error(json?.error ?? `The server answered ${res.status}.`);
   return json.data as CheckDetail;

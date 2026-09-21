@@ -4,6 +4,9 @@ import { useRef, useState } from "react";
 import { useResume } from "@/hooks/use-resume";
 import type { JobDetail } from "./types/job";
 import { CopyIcon, SparklesIcon } from "./icons";
+import { api } from "@/lib/demo/api";
+import { store } from "@/lib/browser-store";
+import { inDemo } from "@/lib/demo/mode";
 
 // A cover letter for this posting, drafted from the student's resume and
 // streamed in as it is written. The draft is theirs to edit; it is kept per
@@ -19,7 +22,7 @@ interface Saved {
 
 function readSaved(jobId: string): Saved | null {
   try {
-    const raw = localStorage.getItem(CACHE_PREFIX + jobId);
+    const raw = store.getItem(CACHE_PREFIX + jobId);
     return raw ? (JSON.parse(raw) as Saved) : null;
   } catch {
     return null;
@@ -28,7 +31,7 @@ function readSaved(jobId: string): Saved | null {
 
 function save(jobId: string, saved: Saved) {
   try {
-    localStorage.setItem(CACHE_PREFIX + jobId, JSON.stringify(saved));
+    store.setItem(CACHE_PREFIX + jobId, JSON.stringify(saved));
   } catch {
     // Full or blocked storage only means writing it again next time.
   }
@@ -85,7 +88,7 @@ export function CoverLetter({ job }: { job: JobDetail }) {
     setText("");
     let letter = "";
     try {
-      const res = await fetch(`/api/jobs/${job.jobId}/cover-letter`, {
+      const res = await api(`/api/jobs/${job.jobId}/cover-letter`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -244,6 +247,7 @@ export function CoverLetter({ job }: { job: JobDetail }) {
           <p className="text-[13px] text-slate max-w-[60ch]">
             Drafts a letter for {job.title} at {job.organization} from your resume: the experiences that fit what this job
             asks for, in your own words to edit. It only uses what your resume says.
+            {inDemo() && " In the demo the letter is one written earlier — no model is called."}
           </p>
         )
       )}

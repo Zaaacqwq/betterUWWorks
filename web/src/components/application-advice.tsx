@@ -5,6 +5,9 @@ import { useResume } from "@/hooks/use-resume";
 import type { ApplicationAdvice as Advice } from "@/lib/match-advice/types";
 import type { JobDetail } from "./types/job";
 import { TargetIcon, WarningIcon } from "./icons";
+import { api } from "@/lib/demo/api";
+import { store } from "@/lib/browser-store";
+import { inDemo } from "@/lib/demo/mode";
 
 // How to apply to this posting with this resume: what to lead with, how to
 // handle the gaps, what to check first. The match itself is the breakdown
@@ -21,7 +24,7 @@ function hash(text: string): string {
 
 function readCache(key: string): Advice | null {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = store.getItem(key);
     return raw ? (JSON.parse(raw) as Advice) : null;
   } catch {
     return null;
@@ -30,7 +33,7 @@ function readCache(key: string): Advice | null {
 
 function writeCache(key: string, advice: Advice) {
   try {
-    localStorage.setItem(key, JSON.stringify(advice));
+    store.setItem(key, JSON.stringify(advice));
   } catch {
     // Full or blocked storage only costs asking again next time.
   }
@@ -61,7 +64,7 @@ export function ApplicationAdvice({ job }: { job: JobDetail }) {
     if (!profile) return;
     setResult({ key: cacheKey, value: { state: "loading" } });
     try {
-      const res = await fetch(`/api/jobs/${job.jobId}/match`, {
+      const res = await api(`/api/jobs/${job.jobId}/match`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profile, userInfo, extraSkills, skillLevels }),
@@ -95,6 +98,7 @@ export function ApplicationAdvice({ job }: { job: JobDetail }) {
         <>
           <p className="text-[13px] text-slate">
             Which of your experience to lead with, how to handle the skills you&apos;re missing, and what to check before applying.
+            {inDemo() && " In the demo the advice is written out already — no model is called."}
           </p>
           <button
             onClick={generate}

@@ -11,6 +11,7 @@ import { MatchBreakdown } from "./match-breakdown";
 import { ApplicationAdvice } from "./application-advice";
 import { CoverLetter } from "./cover-letter";
 import { Kbd } from "./kbd";
+import { api } from "@/lib/demo/api";
 
 type Tab = "overview" | "match" | "ratings" | "cover";
 
@@ -39,7 +40,7 @@ export function JobDetailPanel({ jobId, saved, matchScore, onToggleSave, hidden,
     setLoading(true);
     const controller = new AbortController();
 
-    fetch(`/api/jobs/${jobId}`, { signal: controller.signal })
+    api(`/api/jobs/${jobId}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => {
         setJob(data.success ? data.data : null);

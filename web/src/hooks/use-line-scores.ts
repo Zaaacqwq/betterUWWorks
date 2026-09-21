@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { onResumePushed } from "./use-resume";
+import { api } from "@/lib/demo/api";
 
 // Skills scores the server has checked line by line against the student's
 // resume, and how far that checking has got. Asked for again every few
@@ -35,7 +36,7 @@ export function useLineScores(enabled: boolean): LineScores | null {
       const ac = new AbortController();
       controller = ac;
       try {
-        const res = await fetch("/api/match/scores", { signal: ac.signal });
+        const res = await api("/api/match/scores", { signal: ac.signal });
         const json = await res.json();
         if (!json?.success) return;
         const next = json.data as LineScores | null;

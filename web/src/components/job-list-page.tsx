@@ -15,10 +15,12 @@ import { CheckProgress } from "./check-progress";
 import { Pagination } from "./pagination";
 import { AppHeader, type ClearState } from "./app-header";
 import { AccessGate } from "./access-gate";
+import { DemoBanner } from "./demo-banner";
 import { OnboardingTour } from "./onboarding-tour";
 import { useViewer } from "@/hooks/use-viewer";
 import { ChevronLeftIcon } from "./icons";
 import type { JobSummary, Filters } from "./types/job";
+import { api } from "@/lib/demo/api";
 
 interface FilterOption {
   label: string;
@@ -58,7 +60,8 @@ function nullsLastCompare(a: number | null, b: number | null, dir: number): numb
   return dir * (a - b);
 }
 
-export function JobListPage() {
+/** `demo` is the page at /demo: sample postings, no sign-in, a strip saying so. */
+export function JobListPage({ demo = false }: { demo?: boolean } = {}) {
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
@@ -104,7 +107,7 @@ export function JobListPage() {
 
   useEffect(() => {
     if (!canLoad) return;
-    fetch("/api/jobs/filters")
+    api("/api/jobs/filters")
       .then((r) => r.json())
       .then((data) => {
         if (data.success) setFilterOptions({
@@ -139,7 +142,7 @@ export function JobListPage() {
     params.set("page", "1");
     params.set("limit", "9999");
 
-    fetch(`/api/jobs?${params}`, { signal: controller.signal })
+    api(`/api/jobs?${params}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => {
         if (data.success) {
@@ -157,7 +160,7 @@ export function JobListPage() {
   }, [fetchJobs, canLoad]);
 
   const fetchCatalogTotal = useCallback(() => {
-    fetch("/api/jobs?limit=1")
+    api("/api/jobs?limit=1")
       .then((r) => r.json())
       .then((data) => setCatalogTotal(data.success ? data.meta.total : null))
       // Unknown total: the list shows its own count and delete stays off
@@ -188,8 +191,8 @@ export function JobListPage() {
     try {
       // The server checks the whole table, closed postings included, while the
       // list only counts what it shows.
-      const all = await fetch("/api/jobs?limit=1&closed=1").then((r) => r.json());
-      const resp = await fetch(`/api/jobs?expected=${all?.meta?.total ?? -1}`, { method: "DELETE" });
+      const all = await api("/api/jobs?limit=1&closed=1").then((r) => r.json());
+      const resp = await api(`/api/jobs?expected=${all?.meta?.total ?? -1}`, { method: "DELETE" });
       const result = await resp.json();
       if (!resp.ok || !result.success) {
         setClearError(result.error || resp.statusText);
@@ -339,6 +342,7 @@ export function JobListPage() {
 
   return (
     <div className="h-screen flex flex-col bg-surface">
+      {demo && <DemoBanner />}
       <AppHeader
         savedCount={savedCount}
         hiddenCount={hiddenCount}

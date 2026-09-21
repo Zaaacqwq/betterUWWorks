@@ -2,6 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import type { Me } from "@/app/api/me/route";
+import { api } from "@/lib/demo/api";
 
 // Who the page is being shown to, asked once and shared by every component
 // that wants it (the header, the access card, the list). Until the server
@@ -27,7 +28,7 @@ let inflight: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
 export function refreshViewer(): Promise<void> {
-  inflight ??= fetch("/api/me", { cache: "no-store" })
+  inflight ??= api("/api/me", { cache: "no-store" })
     .then((res) => res.json())
     .then((body) => {
       current = body?.success ? { ...body.data, loading: false } : { ...LOADING, loading: false };

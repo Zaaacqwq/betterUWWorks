@@ -42,6 +42,17 @@ GPA, work term, year, citizenship and licence never move the score — they are 
 posting instead. Until a posting has been checked its score shows as `~68`, an estimate from matching
 skill names; the list and the detail always read the same stored check.
 
+## The demo
+
+`/demo` is the site as a stranger sees it: no sign-in, no approval, the same list, detail panel and
+scoring over eight made-up postings and a made-up resume. It costs nothing to run and nothing to
+serve — every `/api` call the pages make goes through `lib/demo/api.ts`, and on that page the browser
+answers them itself from `lib/demo/data`, so no request reaches the server, the database or a model.
+The summaries, line-by-line checks and cover letters there were written by hand once; the scores
+around them are worked out live by the real scorer. The demo writes its resume and its saved
+postings under a prefix of its own (`lib/browser-store.ts`), so looking at it first leaves a
+student's own copy alone.
+
 ## Layout
 
 ```
@@ -54,6 +65,7 @@ web/
   src/components/     the list, the detail panel, the resume dialog, /admin
   src/lib/line-check/ splitting and tagging postings, checking resumes, scoring, the scheduler
   src/lib/resume/     the older name-matching engine, still used for the estimate and as a fallback
+  src/lib/demo/       the demo at /demo: sample postings and a sample resume, answered in the browser
   src/db/schema.ts    jobs · job_lines · app_users · resumes · line_grades · settings
   drizzle/*.sql       migrations, applied by hand in order
 ops/                  deploy script, launchd agents, health check

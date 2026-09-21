@@ -7,6 +7,7 @@ import type { PayInfo } from "@/lib/job-details/types";
 import type { JobDetail } from "./types/job";
 import { SparklesIcon } from "./icons";
 import { SkillPick } from "./skill-pick";
+import { api } from "@/lib/demo/api";
 
 // The posting at a glance: what the work is, pay, what it requires and the
 // skills it names — each read out of the posting and checked against it, so
@@ -56,7 +57,7 @@ function useSummary(job: JobDetail): SummaryState {
   useEffect(() => {
     if (!needsFetch) return;
     const controller = new AbortController();
-    fetch(`/api/jobs/${job.jobId}/summary`, { signal: controller.signal })
+    api(`/api/jobs/${job.jobId}/summary`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => {
         const text = data.success ? data.data.summary : null;

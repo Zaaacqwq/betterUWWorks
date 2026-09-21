@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
+import { store } from "@/lib/browser-store";
 
 // A set of job ids kept in this browser — the saved ones, the ones a student
 // has turned down. Both behave the same way, so both are this store under a
@@ -11,7 +12,7 @@ const cached = new Map<string, { raw: string; ids: string[] }>();
 const EMPTY: string[] = [];
 
 function read(key: string): string[] {
-  const raw = localStorage.getItem(key) ?? "";
+  const raw = store.getItem(key) ?? "";
   const seen = cached.get(key);
   if (!seen || seen.raw !== raw) {
     let ids: string[] = EMPTY;
@@ -53,7 +54,7 @@ export function useJobIdSet(key: string): JobIdSet {
     (jobId: string) => {
       const current = read(key);
       const next = current.includes(jobId) ? current.filter((id) => id !== jobId) : [...current, jobId];
-      localStorage.setItem(key, JSON.stringify(next));
+      store.setItem(key, JSON.stringify(next));
       listeners.get(key)?.forEach((cb) => cb());
     },
     [key]

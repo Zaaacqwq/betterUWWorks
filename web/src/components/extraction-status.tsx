@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ExtractionStatus as Status } from "@/app/api/jobs/extraction-status/route";
+import { api } from "@/lib/demo/api";
 
 // How far skills, pay and summaries have been read out of the postings, with a
 // way to catch up on the ones still waiting. Lives in the header's ⋯ menu and
@@ -18,7 +19,7 @@ export function ExtractionStatus({ canStart }: { canStart: boolean }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/jobs/extraction-status");
+      const res = await api("/api/jobs/extraction-status");
       const body = await res.json();
       if (!body.success) throw new Error(body.error);
       setStatus(body.data);
@@ -43,7 +44,7 @@ export function ExtractionStatus({ canStart }: { canStart: boolean }) {
   const start = async (retryFailed: boolean) => {
     setStarting(true);
     try {
-      await fetch("/api/jobs/extraction-status", {
+      await api("/api/jobs/extraction-status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ retryFailed }),

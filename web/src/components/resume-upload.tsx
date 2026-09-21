@@ -6,6 +6,7 @@ import type { Capability, EvidenceType, UserInfo } from "@/lib/resume/types";
 import { normalizeSkill } from "@/lib/resume/skill-utils";
 import { SkillPick } from "./skill-pick";
 import { MAX_RESUMES } from "@/lib/line-check/types";
+import { api } from "@/lib/demo/api";
 
 interface ResumeUploadProps {
   open: boolean;
@@ -59,7 +60,7 @@ export function ResumeUpload({ open, onClose, onOpen }: ResumeUploadProps) {
     form.append("file", file);
 
     try {
-      const res = await fetch("/api/resume/parse", { method: "POST", body: form });
+      const res = await api("/api/resume/parse", { method: "POST", body: form });
       const json = await res.json();
       if (!json.success) {
         setError(json.error);
@@ -87,7 +88,7 @@ export function ResumeUpload({ open, onClose, onOpen }: ResumeUploadProps) {
     setExtracting(true);
     setError("");
     try {
-      const res = await fetch("/api/resume/extract", {
+      const res = await api("/api/resume/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),

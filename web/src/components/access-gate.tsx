@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn, signOut } from "next-auth/react";
 import { refreshViewer, type ViewerState } from "@/hooks/use-viewer";
+import { DEMO_PATH } from "@/lib/demo/mode";
 
 // Laid over the list until the viewer has been let in: a sign-in card for
 // someone signed out, a waiting card while the owner decides. The postings
@@ -50,10 +51,17 @@ export function AccessGate({ viewer }: { viewer: ViewerState }) {
     title = "Sign in to continue";
     body = "Sign in with Google to browse the postings. A new account waits for the owner to approve it.";
     actions = (
-      <button onClick={start} disabled={busy} className={`${BUTTON} border border-hairline bg-surface text-charcoal hover:bg-surface-soft`}>
-        <GoogleMark />
-        {busy ? "Opening Google…" : "Sign in with Google"}
-      </button>
+      <div className="space-y-2">
+        <button onClick={start} disabled={busy} className={`${BUTTON} border border-hairline bg-surface text-charcoal hover:bg-surface-soft`}>
+          <GoogleMark />
+          {busy ? "Opening Google…" : "Sign in with Google"}
+        </button>
+        {/* A plain link, not a router one: the demo keeps its own resume and
+            saved postings, and a fresh load is what keeps the two apart. */}
+        <a href={DEMO_PATH} className={`${BUTTON} text-primary hover:bg-primary-tint/60`}>
+          Look around the demo first
+        </a>
+      </div>
     );
   } else if (viewer.status === "blocked") {
     title = "No access";
@@ -77,13 +85,18 @@ export function AccessGate({ viewer }: { viewer: ViewerState }) {
       </>
     );
     actions = (
-      <div className="flex gap-2">
-        <button onClick={checkAgain} disabled={busy} className={`${BUTTON} bg-primary text-on-primary hover:bg-primary-pressed`}>
-          {busy ? "Checking…" : "Check again"}
-        </button>
-        <button onClick={switchAccount} disabled={busy} className={`${BUTTON} border border-hairline text-charcoal hover:bg-surface`}>
-          Use a different account
-        </button>
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <button onClick={checkAgain} disabled={busy} className={`${BUTTON} bg-primary text-on-primary hover:bg-primary-pressed`}>
+            {busy ? "Checking…" : "Check again"}
+          </button>
+          <button onClick={switchAccount} disabled={busy} className={`${BUTTON} border border-hairline text-charcoal hover:bg-surface`}>
+            Use a different account
+          </button>
+        </div>
+        <a href={DEMO_PATH} className={`${BUTTON} text-primary hover:bg-primary-tint/60`}>
+          See what you&apos;re waiting for
+        </a>
       </div>
     );
   }
