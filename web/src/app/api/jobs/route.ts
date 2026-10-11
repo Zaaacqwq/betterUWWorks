@@ -15,6 +15,9 @@ const DEFAULT_LIMIT = 20;
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const q = params.get("q")?.trim() || "";
+  // A bare number is a WaterlooWorks posting ID, which the text index doesn't
+  // hold; it finds that one posting, closed or not.
+  const postingId = /^\d+$/.test(q) ? q : "";
   const locations = splitParam(params.get("location"));
   const levels = splitParam(params.get("level"));
   const arrangements = splitParam(params.get("arrangement"));
@@ -40,7 +43,8 @@ export async function GET(request: NextRequest) {
   const conditions: SQL[] = [];
 
   if (q) {
-    conditions.push(sql`search_vector @@ plainto_tsquery('english', ${q})`);
+    const text = sql`search_vector @@ plainto_tsquery('english', ${q})`;
+    conditions.push(postingId ? sql`(${text} or ${jobs.jobId} = ${postingId})` : text);
   }
   if (locations.length > 0) {
     conditions.push(
@@ -90,11 +94,10 @@ export async function GET(request: NextRequest) {
   // applies while syncing is itself healthy — after a broken sync every
   // posting looks unlisted, and the list must not empty itself.
   if (params.get("closed") !== "1") {
-    conditions.push(sql`(${jobs.deadlineAt} is null or ${jobs.deadlineAt} > now())`);
-    conditions.push(
-      sql`(${jobs.updatedAt} >= now() - interval '3 days'
-           or (select max(updated_at) from jobs) < now() - interval '36 hours')`
-    );
+    const open = sql`(${jobs.deadlineAt} is null or ${jobs.deadlineAt} > now())
+      and (${jobs.updatedAt} >= now() - interval '3 days'
+           or (select max(updated_at) from jobs) < now() - interval '36 hours')`;
+    conditions.push(postingId ? sql`((${open}) or ${jobs.jobId} = ${postingId})` : open);
   }
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;

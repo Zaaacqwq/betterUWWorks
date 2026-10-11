@@ -162,7 +162,9 @@ export function JobListPage({ demo = false }: { demo?: boolean } = {}) {
   }, [fetchJobs, canLoad]);
 
   const fetchCatalogTotal = useCallback(() => {
-    api("/api/jobs?limit=1")
+    // closed=1: closed postings are still rows, and an all-closed table is
+    // not an empty one.
+    api("/api/jobs?limit=1&closed=1")
       .then((r) => r.json())
       .then((data) => {
         setCatalogTotal(data.success ? data.meta.total : null);
@@ -422,6 +424,18 @@ export function JobListPage({ demo = false }: { demo?: boolean } = {}) {
                   title="No saved jobs yet"
                   body="Save a job from its detail panel to keep it here."
                   action={{ label: "Show all jobs", onClick: () => setShowSavedOnly(false) }}
+                />
+              ) : !showSavedOnly && filters.closed !== "1" && activeFilterCount === (query ? 1 : 0) ? (
+                // No filters are in the way, so what's missing has closed — say so
+                // instead of blaming filters that aren't there.
+                <EmptyState
+                  title={query ? "No open jobs match" : "Every posting has closed"}
+                  body={
+                    query
+                      ? "Closed postings are hidden. They may have what you're looking for."
+                      : "Applications have shut on everything imported so far. New postings show up after the next sync."
+                  }
+                  action={{ label: "Show closed postings", onClick: () => handleFilterChange("closed", "1") }}
                 />
               ) : (
                 <EmptyState
